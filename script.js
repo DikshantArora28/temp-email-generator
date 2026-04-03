@@ -307,7 +307,7 @@ async function openEmail(id) {
         modalDate.textContent = formatFullDate(msg.createdAt);
         if (msg.html && msg.html.length > 0) {
             const iframe = document.createElement('iframe');
-            iframe.sandbox = 'allow-same-origin allow-popups allow-popups-to-escape-sandbox';
+            iframe.sandbox = 'allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation';
             Object.assign(iframe.style, { width: '100%', minHeight: '250px', border: 'none', borderRadius: '8px', background: 'white' });
             modalBody.innerHTML = ''; modalBody.appendChild(iframe);
             const html = msg.html.join ? msg.html.join('') : msg.html;
