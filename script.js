@@ -352,11 +352,11 @@ async function openEmail(id) {
         modalDate.textContent = formatFullDate(msg.createdAt);
         if (msg.html && msg.html.length > 0) {
             const iframe = document.createElement('iframe');
-            iframe.sandbox = 'allow-same-origin';
+            iframe.sandbox = 'allow-same-origin allow-popups allow-popups-to-escape-sandbox';
             Object.assign(iframe.style, { width: '100%', minHeight: '250px', border: 'none', borderRadius: '8px', background: 'white' });
             modalBody.innerHTML = ''; modalBody.appendChild(iframe);
             const html = msg.html.join ? msg.html.join('') : msg.html;
-            iframe.srcdoc = `<html><head><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;line-height:1.6;color:#333;padding:16px;margin:0;word-wrap:break-word}img{max-width:100%;height:auto}a{color:#6c5ce7}</style></head><body>${html}</body></html>`;
+            iframe.srcdoc = `<html><head><base target="_blank"><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;line-height:1.6;color:#333;padding:16px;margin:0;word-wrap:break-word}img{max-width:100%;height:auto}a{color:#6c5ce7;cursor:pointer}</style></head><body>${html}</body></html>`;
             iframe.onload = () => { try { iframe.style.height = Math.min(iframe.contentDocument.body.scrollHeight + 32, 600) + 'px'; } catch {} };
         } else {
             modalBody.innerHTML = `<pre style="white-space:pre-wrap;font-family:inherit;">${escapeHtml(msg.text || 'No content')}</pre>`;
