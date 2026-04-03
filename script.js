@@ -499,19 +499,23 @@ function openSmsViewer(url, numberLabel) {
     smsViewer.style.display = '';
     smsViewer.scrollIntoView({ behavior: 'smooth', block: 'start' });
     fetchAndRenderSms(url);
+    startSmsAutoRefresh();
 }
 
 function closeSmsViewer() {
     smsViewer.style.display = 'none';
     smsList.innerHTML = '';
     currentSmsUrl = '';
+    stopSmsAutoRefresh();
 }
 
 async function fetchAndRenderSms(url) {
     try {
         smsRefreshIcon.classList.add('spinning');
-        const proxyUrl = CORS_PROXY + encodeURIComponent(url);
-        const res = await fetch(proxyUrl);
+        // Add cache-buster to force fresh fetch every time
+        const cacheBuster = url.includes('?') ? `&_t=${Date.now()}` : `?_t=${Date.now()}`;
+        const proxyUrl = CORS_PROXY + encodeURIComponent(url + cacheBuster);
+        const res = await fetch(proxyUrl, { cache: 'no-store' });
         if (!res.ok) throw new Error(`Fetch failed (${res.status})`);
         const html = await res.text();
 
@@ -602,6 +606,47 @@ function renderSmsMessages(messages) {
 smsViewerClose.addEventListener('click', closeSmsViewer);
 smsRefreshBtn.addEventListener('click', () => {
     if (currentSmsUrl) fetchAndRenderSms(currentSmsUrl);
+});
+
+// Auto-refresh SMS every 10 seconds
+const smsAutoRefresh = document.getElementById('smsAutoRefresh');
+const smsCountdown = document.getElementById('smsCountdown');
+const smsManualRefresh = document.getElementById('smsManualRefresh');
+let smsRefreshInterval = null;
+let smsCountdownInterval = null;
+let smsCountdownValue = 10;
+
+function startSmsAutoRefresh() {
+    stopSmsAutoRefresh();
+    smsCountdownValue = 10;
+    smsCountdown.textContent = smsCountdownValue;
+
+    smsCountdownInterval = setInterval(() => {
+        smsCountdownValue--;
+        if (smsCountdownValue <= 0) smsCountdownValue = 10;
+        smsCountdown.textContent = smsCountdownValue;
+    }, 1000);
+
+    smsRefreshInterval = setInterval(() => {
+        if (currentSmsUrl) fetchAndRenderSms(currentSmsUrl);
+        smsCountdownValue = 10;
+    }, 10000);
+}
+
+function stopSmsAutoRefresh() {
+    if (smsRefreshInterval) { clearInterval(smsRefreshInterval); smsRefreshInterval = null; }
+    if (smsCountdownInterval) { clearInterval(smsCountdownInterval); smsCountdownInterval = null; }
+}
+
+smsManualRefresh.addEventListener('click', () => {
+    if (currentSmsUrl) {
+        fetchAndRenderSms(currentSmsUrl);
+        // Reset countdown
+        smsCountdownValue = 10;
+        smsCountdown.textContent = smsCountdownValue;
+        stopSmsAutoRefresh();
+        startSmsAutoRefresh();
+    }
 });
 
 // Country filter buttons
