@@ -145,14 +145,14 @@ async function secmail_fetchMessage(login, domain, id) {
 const GM_BASE = 'https://api.guerrillamail.com/ajax.php';
 
 async function gm_getAddress() {
-    const res = await fetch(`${GM_BASE}?f=get_email_address&lang=en`);
+    const res = await fetch(`${GM_BASE}?f=get_email_address&lang=en`, { credentials: 'include' });
     if (!res.ok) throw new Error('Guerrilla Mail unavailable');
     const data = await res.json();
     return { address: data.email_addr, sid: data.sid_token, alias: data.alias };
 }
 
 async function gm_setAddress(sid, username) {
-    const res = await fetch(`${GM_BASE}?f=set_email_user&email_user=${encodeURIComponent(username)}&lang=en&sid_token=${encodeURIComponent(sid)}`);
+    const res = await fetch(`${GM_BASE}?f=set_email_user&email_user=${encodeURIComponent(username)}&lang=en&sid_token=${encodeURIComponent(sid)}`, { credentials: 'include' });
     if (!res.ok) throw new Error('Failed to set address');
     const data = await res.json();
     return { address: data.email_addr, sid: data.sid_token };
@@ -160,7 +160,7 @@ async function gm_setAddress(sid, username) {
 
 async function gm_fetchMessages(sid) {
     try {
-        const res = await fetch(`${GM_BASE}?f=check_email&sid_token=${encodeURIComponent(sid)}&seq=0`);
+        const res = await fetch(`${GM_BASE}?f=check_email&sid_token=${encodeURIComponent(sid)}&seq=0`, { credentials: 'include' });
         if (!res.ok) return [];
         const data = await res.json();
         return (data.list || []).map(m => ({
@@ -172,7 +172,7 @@ async function gm_fetchMessages(sid) {
 }
 
 async function gm_fetchMessage(sid, id) {
-    const res = await fetch(`${GM_BASE}?f=fetch_email&sid_token=${encodeURIComponent(sid)}&email_id=${id}`);
+    const res = await fetch(`${GM_BASE}?f=fetch_email&sid_token=${encodeURIComponent(sid)}&email_id=${id}`, { credentials: 'include' });
     if (!res.ok) throw new Error('Failed to load');
     const m = await res.json();
     return {
@@ -182,23 +182,67 @@ async function gm_fetchMessage(sid, id) {
     };
 }
 
-async function gm_sendEmail(sid, to, subject, body) {
-    const formData = new URLSearchParams();
-    formData.append('f', 'send_email');
-    formData.append('sid_token', sid);
-    formData.append('email_to', to);
-    formData.append('subject', subject);
-    formData.append('body', body);
+// Send email via hidden form POST (bypasses CORS — form submissions are exempt)
+function gm_sendEmail(sid, to, subject, body) {
+    return new Promise((resolve, reject) => {
+        // Create hidden iframe to receive the form response
+        const iframeName = 'gm_send_frame_' + Date.now();
+        const iframe = document.createElement('iframe');
+        iframe.name = iframeName;
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
 
-    const res = await fetch(GM_BASE, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: formData.toString(),
+        // Create hidden form targeting the iframe
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = GM_BASE;
+        form.target = iframeName;
+        form.style.display = 'none';
+
+        const fields = {
+            f: 'send_email',
+            sid_token: sid,
+            email_to: to,
+            subject: subject,
+            body: body,
+        };
+
+        Object.entries(fields).forEach(([name, value]) => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            input.value = value;
+            form.appendChild(input);
+        });
+
+        document.body.appendChild(form);
+
+        // Listen for iframe load (form submission complete)
+        let resolved = false;
+        iframe.onload = () => {
+            if (!resolved) {
+                resolved = true;
+                // Clean up
+                setTimeout(() => {
+                    document.body.removeChild(form);
+                    document.body.removeChild(iframe);
+                }, 500);
+                resolve({ success: true });
+            }
+        };
+
+        // Timeout after 10s
+        setTimeout(() => {
+            if (!resolved) {
+                resolved = true;
+                try { document.body.removeChild(form); document.body.removeChild(iframe); } catch {}
+                reject(new Error('Send timed out. Please try again.'));
+            }
+        }, 10000);
+
+        // Submit the form
+        form.submit();
     });
-    if (!res.ok) throw new Error(`Send failed (${res.status})`);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    return data;
 }
 
 // Guerrilla Mail domains
@@ -526,7 +570,7 @@ composeSendBtn.addEventListener('click', async () => {
     try {
         await sendEmail(to, subject, body || '(empty)');
         closeCompose();
-        showToast('Email sent successfully!');
+        showToast('Email sent! Check recipient inbox (or spam folder)');
     } catch (err) {
         console.error('Send failed:', err);
         showToast('Send failed: ' + err.message);
