@@ -146,17 +146,26 @@
 
                     <!-- Country Filter -->
                     <div class="country-filter">
-                        <button class="country-btn active" data-country="all">All</button>
-                        <button class="country-btn" data-country="US">🇺🇸 USA</button>
-                        <button class="country-btn" data-country="IN">🇮🇳 India</button>
-                        <button class="country-btn" data-country="CN">🇨🇳 China</button>
-                        <button class="country-btn" data-country="DE">🇩🇪 Germany</button>
-                        <button class="country-btn" data-country="GB">🇬🇧 UK</button>
-                        <button class="country-btn" data-country="CA">🇨🇦 Canada</button>
+                        <button class="country-btn active" data-country="all">&#x1F30D; All</button>
+                        <button class="country-btn" data-country="US">&#x1F1FA;&#x1F1F8; USA</button>
+                        <button class="country-btn" data-country="IN">&#x1F1EE;&#x1F1F3; India</button>
+                        <button class="country-btn" data-country="CN">&#x1F1E8;&#x1F1F3; China</button>
+                        <button class="country-btn" data-country="DE">&#x1F1E9;&#x1F1EA; Germany</button>
+                        <button class="country-btn" data-country="GB">&#x1F1EC;&#x1F1E7; UK</button>
+                        <button class="country-btn" data-country="CA">&#x1F1E8;&#x1F1E6; Canada</button>
                     </div>
 
                     <!-- Phone Numbers Grid -->
                     <div class="phone-grid" id="phoneGrid"></div>
+
+                    <!-- Embedded SMS Viewer -->
+                    <div class="sms-viewer" id="smsViewer" style="display:none;">
+                        <div class="sms-viewer-header">
+                            <h3 id="smsViewerTitle">SMS Inbox</h3>
+                            <button class="sms-viewer-close" id="smsViewerClose" title="Close SMS viewer">&times;</button>
+                        </div>
+                        <iframe id="smsViewerFrame" class="sms-viewer-frame" sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms"></iframe>
+                    </div>
 
                     <div class="phone-note">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">

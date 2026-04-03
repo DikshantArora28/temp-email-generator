@@ -468,10 +468,30 @@ function renderPhoneNumbers() {
 
     phoneGrid.querySelectorAll('.phone-sms-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            window.open(btn.dataset.url, '_blank');
+            openSmsViewer(btn.dataset.url, btn.closest('.phone-item').querySelector('.phone-number')?.textContent || 'Phone');
         });
     });
 }
+
+// SMS Viewer (embedded iframe)
+const smsViewer = document.getElementById('smsViewer');
+const smsViewerFrame = document.getElementById('smsViewerFrame');
+const smsViewerTitle = document.getElementById('smsViewerTitle');
+const smsViewerClose = document.getElementById('smsViewerClose');
+
+function openSmsViewer(url, numberLabel) {
+    smsViewerTitle.textContent = `SMS Inbox \u2014 ${numberLabel}`;
+    smsViewerFrame.src = url;
+    smsViewer.style.display = '';
+    smsViewer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function closeSmsViewer() {
+    smsViewer.style.display = 'none';
+    smsViewerFrame.src = '';
+}
+
+smsViewerClose.addEventListener('click', closeSmsViewer);
 
 // Country filter buttons
 document.querySelectorAll('.country-btn').forEach(btn => {
