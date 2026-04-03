@@ -72,10 +72,6 @@ const domainSelect     = document.getElementById('domainSelect');
 const domainCount      = document.getElementById('domainCount');
 const accountTabs      = document.getElementById('accountTabs');
 const accountCounter   = document.getElementById('accountCounter');
-// Personal domain
-const personalDomainSection = document.getElementById('personalDomainSection');
-const personalDomainInput   = document.getElementById('personalDomainInput');
-const personalDomainPreview = document.getElementById('personalDomainPreview');
 // Compose
 const composeOverlay   = document.getElementById('composeOverlay');
 const composeClose     = document.getElementById('composeClose');
@@ -300,14 +296,10 @@ function populateDomainDropdown() {
 // ==========================================================
 //  CREATE ACCOUNT (multi-provider)
 // ==========================================================
-async function createAccount(selection, customDomain) {
+async function createAccount(selection) {
     const person = getRandomName();
     const suffix = generateRandomString(2);
-    // If personal domain name is set, append it to the username
-    const cleanCustom = customDomain ? customDomain.trim().toLowerCase().replace(/[^a-z0-9]/g, '') : '';
-    const username = cleanCustom
-        ? `${person.full}_${cleanCustom}${suffix}`
-        : `${person.full}${suffix}`;
+    const username = `${person.full}${suffix}`;
 
     let domainInfo;
     if (selection) {
@@ -672,30 +664,7 @@ copyBtn.addEventListener('click', async () => {
 premiumToggle.addEventListener('change', () => {
     isPremium = premiumToggle.checked;
     domainSelector.style.display = isPremium ? '' : 'none';
-    personalDomainSection.style.display = isPremium ? '' : 'none';
-    updatePersonalPreview();
 });
-
-// Live preview for personal domain input
-personalDomainInput.addEventListener('input', updatePersonalPreview);
-
-function updatePersonalPreview() {
-    const custom = personalDomainInput.value.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-    const selectedOpt = domainSelect.value;
-    let baseDomain = 'domain.com';
-    try {
-        const info = JSON.parse(selectedOpt);
-        baseDomain = info.domain;
-    } catch {}
-
-    if (custom) {
-        personalDomainPreview.innerHTML = `Preview: firstname_lastname<b>_${escapeHtml(custom)}</b>@${escapeHtml(baseDomain)}`;
-    } else {
-        personalDomainPreview.innerHTML = `Preview: firstname_lastname@${escapeHtml(baseDomain)}`;
-    }
-}
-
-domainSelect.addEventListener('change', updatePersonalPreview);
 
 generateBtn.addEventListener('click', async () => {
     if (accounts.length >= MAX_ACCOUNTS) {
@@ -709,8 +678,7 @@ generateBtn.addEventListener('click', async () => {
 
     try {
         const selection = isPremium ? domainSelect.value : null;
-        const customDomain = isPremium ? personalDomainInput.value : '';
-        const account = await createAccount(selection, customDomain);
+        const account = await createAccount(selection);
 
         accounts.push(account);
         activeIndex = accounts.length - 1;
