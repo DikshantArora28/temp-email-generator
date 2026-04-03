@@ -379,5 +379,109 @@ generateBtn.addEventListener('click', async () => {
 
 refreshBtn.addEventListener('click', refreshInbox);
 
+// ==========================================================
+//  TAB SWITCHING (Email / Phone)
+// ==========================================================
+const tabEmail = document.getElementById('tabEmail');
+const tabPhone = document.getElementById('tabPhone');
+const emailTabContent = document.getElementById('emailTab');
+const phoneTabContent = document.getElementById('phoneTab');
+
+tabEmail.addEventListener('click', () => {
+    tabEmail.classList.add('active'); tabPhone.classList.remove('active');
+    emailTabContent.style.display = ''; phoneTabContent.style.display = 'none';
+});
+tabPhone.addEventListener('click', () => {
+    tabPhone.classList.add('active'); tabEmail.classList.remove('active');
+    phoneTabContent.style.display = ''; emailTabContent.style.display = 'none';
+    renderPhoneNumbers();
+});
+
+// ==========================================================
+//  TEMPORARY PHONE NUMBERS — curated from public services
+// ==========================================================
+const TEMP_PHONES = [
+    // USA
+    { country: 'US', flag: '\uD83C\uDDFA\uD83C\uDDF8', number: '+1 (380) 260-3245', raw: '13802603245', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/13802603245/' },
+    { country: 'US', flag: '\uD83C\uDDFA\uD83C\uDDF8', number: '+1 (970) 784-0507', raw: '19707840507', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/19707840507/' },
+    { country: 'US', flag: '\uD83C\uDDFA\uD83C\uDDF8', number: '+1 (347) 392-9868', raw: '13473929868', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/13473929868/' },
+    { country: 'US', flag: '\uD83C\uDDFA\uD83C\uDDF8', number: '+1 (281) 216-6971', raw: '12812166971', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/12812166971/' },
+    { country: 'US', flag: '\uD83C\uDDFA\uD83C\uDDF8', number: '+1 (929) 836-4242', raw: '19298364242', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/19298364242/' },
+    // India
+    { country: 'IN', flag: '\uD83C\uDDEE\uD83C\uDDF3', number: '+91 74287 30894', raw: '917428730894', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/917428730894/' },
+    { country: 'IN', flag: '\uD83C\uDDEE\uD83C\uDDF3', number: '+91 74287 23247', raw: '917428723247', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/917428723247/' },
+    { country: 'IN', flag: '\uD83C\uDDEE\uD83C\uDDF3', number: '+91 Numbers', raw: '', service: 'quackr.io', smsUrl: 'https://quackr.io/temporary-numbers/india' },
+    // China
+    { country: 'CN', flag: '\uD83C\uDDE8\uD83C\uDDF3', number: '+86 Numbers', raw: '', service: 'quackr.io', smsUrl: 'https://quackr.io/temporary-numbers/china' },
+    { country: 'CN', flag: '\uD83C\uDDE8\uD83C\uDDF3', number: '+86 Numbers', raw: '', service: 'temp-number.com', smsUrl: 'https://temp-number.com/countries/china' },
+    { country: 'CN', flag: '\uD83C\uDDE8\uD83C\uDDF3', number: '+86 Numbers', raw: '', service: 'mytempsms.com', smsUrl: 'https://mytempsms.com/country/china' },
+    // Germany
+    { country: 'DE', flag: '\uD83C\uDDE9\uD83C\uDDEA', number: '+49 1521 094 7617', raw: '4915210947617', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/4915210947617/' },
+    { country: 'DE', flag: '\uD83C\uDDE9\uD83C\uDDEA', number: '+49 1521 109 4215', raw: '4915211094215', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/4915211094215/' },
+    { country: 'DE', flag: '\uD83C\uDDE9\uD83C\uDDEA', number: '+49 1521 089 9596', raw: '4915210899596', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/4915210899596/' },
+    { country: 'DE', flag: '\uD83C\uDDE9\uD83C\uDDEA', number: '+49 Numbers', raw: '', service: 'quackr.io', smsUrl: 'https://quackr.io/temporary-numbers/germany' },
+    // UK
+    { country: 'GB', flag: '\uD83C\uDDEC\uD83C\uDDE7', number: '+44 7538 299689', raw: '447538299689', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/447538299689/' },
+    { country: 'GB', flag: '\uD83C\uDDEC\uD83C\uDDE7', number: '+44 Numbers', raw: '', service: 'quackr.io', smsUrl: 'https://quackr.io/temporary-numbers/united-kingdom' },
+    // Canada
+    { country: 'CA', flag: '\uD83C\uDDE8\uD83C\uDDE6', number: '+1 (281) 352-4309', raw: '12813524309', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/12813524309/' },
+    { country: 'CA', flag: '\uD83C\uDDE8\uD83C\uDDE6', number: '+1 Numbers', raw: '', service: 'quackr.io', smsUrl: 'https://quackr.io/temporary-numbers/canada' },
+];
+
+let activeCountry = 'all';
+const phoneGrid = document.getElementById('phoneGrid');
+
+function renderPhoneNumbers() {
+    const filtered = activeCountry === 'all' ? TEMP_PHONES : TEMP_PHONES.filter(p => p.country === activeCountry);
+    phoneGrid.innerHTML = '';
+
+    if (filtered.length === 0) {
+        phoneGrid.innerHTML = '<div class="phone-empty">No numbers available for this country</div>';
+        return;
+    }
+
+    filtered.forEach(p => {
+        const item = document.createElement('div');
+        item.className = 'phone-item';
+        item.innerHTML = `
+            <span class="phone-flag">${p.flag}</span>
+            <div class="phone-info">
+                <div class="phone-number">${escapeHtml(p.number)}</div>
+                <div class="phone-service">via ${escapeHtml(p.service)}</div>
+            </div>
+            <div class="phone-actions">
+                ${p.raw ? `<button class="phone-copy-btn" data-number="${escapeHtml(p.raw)}" title="Copy number">Copy</button>` : ''}
+                <button class="phone-sms-btn" data-url="${escapeHtml(p.smsUrl)}">View SMS</button>
+            </div>
+        `;
+        phoneGrid.appendChild(item);
+    });
+
+    // Attach events
+    phoneGrid.querySelectorAll('.phone-copy-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const num = '+' + btn.dataset.number;
+            try { await navigator.clipboard.writeText(num); } catch { const t = document.createElement('textarea'); t.value = num; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); }
+            showToast('Number copied!');
+        });
+    });
+
+    phoneGrid.querySelectorAll('.phone-sms-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            window.open(btn.dataset.url, '_blank');
+        });
+    });
+}
+
+// Country filter buttons
+document.querySelectorAll('.country-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.country-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeCountry = btn.dataset.country;
+        renderPhoneNumbers();
+    });
+});
+
 // ===== INIT =====
 updateAccountCounter(); updateGenerateButton(); fetchAllDomains();
