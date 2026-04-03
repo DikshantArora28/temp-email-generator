@@ -1,8 +1,7 @@
 // ===== Multi-Provider Temp Email Engine =====
-// Providers: Mail.tm, Mail.gw, 1secmail, Guerrilla Mail (send capable)
+// Providers: Mail.tm, Mail.gw, 1secmail
 const MAX_ACCOUNTS = 5;
 
-// State
 let accounts = [];
 let activeIndex = -1;
 let pollingInterval = null;
@@ -34,7 +33,7 @@ const LAST_NAMES = [
 function getRandomName() {
     const first = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)];
     const last  = LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)];
-    return { first, last, full: `${first}_${last}` };
+    return `${first}_${last}`;
 }
 function rnd(len) {
     const c = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -48,7 +47,6 @@ const emailText        = document.getElementById('emailText');
 const emailDisplay     = document.getElementById('emailDisplay');
 const copyBtn          = document.getElementById('copyBtn');
 const generateBtn      = document.getElementById('generateBtn');
-const composeBtn       = document.getElementById('composeBtn');
 const refreshBtn       = document.getElementById('refreshBtn');
 const refreshIcon      = document.getElementById('refreshIcon');
 const autoRefreshBadge = document.getElementById('autoRefreshBadge');
@@ -69,14 +67,6 @@ const domainSelect     = document.getElementById('domainSelect');
 const domainCount      = document.getElementById('domainCount');
 const accountTabs      = document.getElementById('accountTabs');
 const accountCounter   = document.getElementById('accountCounter');
-const composeOverlay   = document.getElementById('composeOverlay');
-const composeClose     = document.getElementById('composeClose');
-const composeFrom      = document.getElementById('composeFrom');
-const composeTo        = document.getElementById('composeTo');
-const composeSubject   = document.getElementById('composeSubject');
-const composeBody      = document.getElementById('composeBody');
-const composeSendBtn   = document.getElementById('composeSendBtn');
-const composeCancelBtn = document.getElementById('composeCancelBtn');
 
 // ==========================================================
 //  PROVIDER: Mail.tm / Mail.gw
@@ -87,7 +77,6 @@ async function mailtm_fetchDomains(base) {
         if (!r1.ok) return [];
         const d1 = await r1.json();
         const list = (d1['hydra:member'] || d1 || []).map(d => d.domain);
-        // Try page 2
         try {
             const r2 = await fetch(`${base}/domains?page=2`, { headers: { 'Content-Type': 'application/json' } });
             if (r2.ok) { const d2 = await r2.json(); (d2['hydra:member'] || []).forEach(d => list.push(d.domain)); }
@@ -140,148 +129,25 @@ async function secmail_fetchMessage(login, domain, id) {
 }
 
 // ==========================================================
-//  PROVIDER: Guerrilla Mail  (SEND + RECEIVE)
-// ==========================================================
-const GM_BASE = 'https://api.guerrillamail.com/ajax.php';
-
-async function gm_getAddress() {
-    const res = await fetch(`${GM_BASE}?f=get_email_address&lang=en`, {});
-    if (!res.ok) throw new Error('Guerrilla Mail unavailable');
-    const data = await res.json();
-    return { address: data.email_addr, sid: data.sid_token, alias: data.alias };
-}
-
-async function gm_setAddress(sid, username) {
-    const res = await fetch(`${GM_BASE}?f=set_email_user&email_user=${encodeURIComponent(username)}&lang=en&sid_token=${encodeURIComponent(sid)}`, {});
-    if (!res.ok) throw new Error('Failed to set address');
-    const data = await res.json();
-    return { address: data.email_addr, sid: data.sid_token };
-}
-
-async function gm_fetchMessages(sid) {
-    try {
-        const res = await fetch(`${GM_BASE}?f=check_email&sid_token=${encodeURIComponent(sid)}&seq=0`, {});
-        if (!res.ok) return [];
-        const data = await res.json();
-        return (data.list || []).map(m => ({
-            id: m.mail_id, from: { address: m.mail_from, name: m.mail_from.split('@')[0] },
-            subject: m.mail_subject, intro: m.mail_excerpt || '', seen: m.mail_read === '1',
-            createdAt: new Date(parseInt(m.mail_timestamp) * 1000).toISOString(),
-        }));
-    } catch { return []; }
-}
-
-async function gm_fetchMessage(sid, id) {
-    const res = await fetch(`${GM_BASE}?f=fetch_email&sid_token=${encodeURIComponent(sid)}&email_id=${id}`, {});
-    if (!res.ok) throw new Error('Failed to load');
-    const m = await res.json();
-    return {
-        id: m.mail_id, from: { address: m.mail_from, name: m.mail_from.split('@')[0] },
-        subject: m.mail_subject, text: m.mail_body || '',
-        html: m.mail_body ? [m.mail_body] : [], createdAt: new Date(parseInt(m.mail_timestamp) * 1000).toISOString(),
-    };
-}
-
-// Send email via hidden form POST (bypasses CORS — form submissions are exempt)
-function gm_sendEmail(sid, to, subject, body) {
-    return new Promise((resolve, reject) => {
-        // Create hidden iframe to receive the form response
-        const iframeName = 'gm_send_frame_' + Date.now();
-        const iframe = document.createElement('iframe');
-        iframe.name = iframeName;
-        iframe.style.display = 'none';
-        document.body.appendChild(iframe);
-
-        // Create hidden form targeting the iframe
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = GM_BASE;
-        form.target = iframeName;
-        form.style.display = 'none';
-
-        const fields = {
-            f: 'send_email',
-            sid_token: sid,
-            email_to: to,
-            subject: subject,
-            body: body,
-        };
-
-        Object.entries(fields).forEach(([name, value]) => {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = name;
-            input.value = value;
-            form.appendChild(input);
-        });
-
-        document.body.appendChild(form);
-
-        // Listen for iframe load (form submission complete)
-        let resolved = false;
-        iframe.onload = () => {
-            if (!resolved) {
-                resolved = true;
-                // Clean up
-                setTimeout(() => {
-                    document.body.removeChild(form);
-                    document.body.removeChild(iframe);
-                }, 500);
-                resolve({ success: true });
-            }
-        };
-
-        // Timeout after 10s
-        setTimeout(() => {
-            if (!resolved) {
-                resolved = true;
-                try { document.body.removeChild(form); document.body.removeChild(iframe); } catch {}
-                reject(new Error('Send timed out. Please try again.'));
-            }
-        }, 10000);
-
-        // Submit the form
-        form.submit();
-    });
-}
-
-// Guerrilla Mail domains
-const GM_DOMAINS = [
-    'guerrillamail.com', 'guerrillamailblock.com', 'guerrillamail.net',
-    'grr.la', 'guerrillamail.org', 'guerrillamail.de',
-    'sharklasers.com', 'spam4.me',
-];
-
-// ==========================================================
-//  DOMAIN FETCHING — all providers
+//  DOMAIN FETCHING
 // ==========================================================
 async function fetchAllDomains() {
     domainSelect.innerHTML = '<option>Loading domains...</option>';
-
     const results = await Promise.allSettled([
         mailtm_fetchDomains('https://api.mail.tm'),
         mailtm_fetchDomains('https://api.mail.gw'),
         secmail_fetchDomains(),
     ]);
-
     allDomains = [];
     const existing = new Set();
-
     function add(domains, provider, base) {
         domains.forEach(d => { if (!existing.has(d)) { allDomains.push({ domain: d, provider, base }); existing.add(d); } });
     }
-
     add(results[0].status === 'fulfilled' ? results[0].value : [], 'mailtm', 'https://api.mail.tm');
     add(results[1].status === 'fulfilled' ? results[1].value : [], 'mailtm', 'https://api.mail.gw');
-
-    // 1secmail with fallback
     let secDomains = results[2].status === 'fulfilled' ? results[2].value : [];
     if (secDomains.length === 0) secDomains = ['1secmail.com','1secmail.org','1secmail.net','esiix.com','wwjmp.com','kzccv.com','dpptd.com','txcct.com','rteet.com','dcctb.com'];
     secDomains.forEach(d => { if (!existing.has(d)) { allDomains.push({ domain: d, provider: '1secmail' }); existing.add(d); } });
-
-    // Guerrilla Mail
-    GM_DOMAINS.forEach(d => { if (!existing.has(d)) { allDomains.push({ domain: d, provider: 'guerrilla', canSend: true }); existing.add(d); } });
-
     console.log(`Loaded ${allDomains.length} total domains`);
     domainCount.textContent = `${allDomains.length} domains`;
     populateDomainDropdown();
@@ -293,34 +159,12 @@ async function fetchAllDomains() {
 function populateDomainDropdown() {
     domainSelect.innerHTML = '';
     if (allDomains.length === 0) { domainSelect.innerHTML = '<option>No domains available</option>'; return; }
-
-    const groups = {
-        guerrilla: { label: 'Send + Receive', items: [] },
-        mailtm:    { label: 'Receive Only', items: [] },
-        '1secmail': { label: 'Receive Only', items: [] },
-    };
-
-    allDomains.forEach(d => {
-        if (groups[d.provider]) groups[d.provider].items.push(d);
-    });
-
-    // Guerrilla first (send capable)
-    if (groups.guerrilla.items.length > 0) {
+    const mailtmDomains  = allDomains.filter(d => d.provider === 'mailtm');
+    const secmailDomains = allDomains.filter(d => d.provider === '1secmail');
+    if (mailtmDomains.length > 0) {
         const grp = document.createElement('optgroup');
-        grp.label = `Guerrilla Mail (${groups.guerrilla.items.length}) \u2014 Send + Receive`;
-        groups.guerrilla.items.forEach(d => {
-            const opt = document.createElement('option');
-            opt.value = JSON.stringify({ provider: 'guerrilla', domain: d.domain });
-            opt.textContent = `\u2709 @${d.domain}`;
-            grp.appendChild(opt);
-        });
-        domainSelect.appendChild(grp);
-    }
-
-    if (groups.mailtm.items.length > 0) {
-        const grp = document.createElement('optgroup');
-        grp.label = `Mail.tm / Mail.gw (${groups.mailtm.items.length}) \u2014 Receive Only`;
-        groups.mailtm.items.forEach(d => {
+        grp.label = `Mail.tm / Mail.gw  (${mailtmDomains.length} domains)`;
+        mailtmDomains.forEach(d => {
             const opt = document.createElement('option');
             opt.value = JSON.stringify({ provider: 'mailtm', domain: d.domain, base: d.base });
             opt.textContent = `@${d.domain}`;
@@ -328,11 +172,10 @@ function populateDomainDropdown() {
         });
         domainSelect.appendChild(grp);
     }
-
-    if (groups['1secmail'].items.length > 0) {
+    if (secmailDomains.length > 0) {
         const grp = document.createElement('optgroup');
-        grp.label = `1secMail (${groups['1secmail'].items.length}) \u2014 Receive Only`;
-        groups['1secmail'].items.forEach(d => {
+        grp.label = `1secMail  (${secmailDomains.length} domains)`;
+        secmailDomains.forEach(d => {
             const opt = document.createElement('option');
             opt.value = JSON.stringify({ provider: '1secmail', domain: d.domain });
             opt.textContent = `@${d.domain}`;
@@ -346,32 +189,19 @@ function populateDomainDropdown() {
 //  CREATE ACCOUNT
 // ==========================================================
 async function createAccount(selection) {
-    const person = getRandomName();
-    const suffix = rnd(2);
-    const username = `${person.full}${suffix}`;
-
+    const username = `${getRandomName()}${rnd(2)}`;
     let domainInfo;
     if (selection) { domainInfo = JSON.parse(selection); }
     else { domainInfo = allDomains[0]; if (!domainInfo) throw new Error('No domains loaded.'); }
-
+    const address = `${username}@${domainInfo.domain}`;
     if (domainInfo.provider === 'mailtm') {
-        const address = `${username}@${domainInfo.domain}`;
         const password = rnd(16);
         const { id, token } = await mailtm_createAccount(domainInfo.base, address, password);
-        return { provider: 'mailtm', base: domainInfo.base, id, address, token, canSend: false, knownMessageIds: new Set(), messages: [] };
+        return { provider: 'mailtm', base: domainInfo.base, id, address, token, knownMessageIds: new Set(), messages: [] };
     }
-
     if (domainInfo.provider === '1secmail') {
-        return { provider: '1secmail', address: `${username}@${domainInfo.domain}`, login: username, domain: domainInfo.domain, canSend: false, knownMessageIds: new Set(), messages: [] };
+        return { provider: '1secmail', address, login: username, domain: domainInfo.domain, knownMessageIds: new Set(), messages: [] };
     }
-
-    if (domainInfo.provider === 'guerrilla') {
-        // Create guerrilla mail account with custom username
-        const { sid } = await gm_getAddress();
-        const { address } = await gm_setAddress(sid, username);
-        return { provider: 'guerrilla', address, sid, canSend: true, knownMessageIds: new Set(), messages: [] };
-    }
-
     throw new Error('Unknown provider');
 }
 
@@ -379,28 +209,14 @@ async function createAccount(selection) {
 //  FETCH MESSAGES
 // ==========================================================
 async function fetchMessagesForAccount(acc) {
-    if (acc.provider === 'mailtm')    return mailtm_fetchMessages(acc.base, acc.token);
-    if (acc.provider === '1secmail')  return secmail_fetchMessages(acc.login, acc.domain);
-    if (acc.provider === 'guerrilla') return gm_fetchMessages(acc.sid);
+    if (acc.provider === 'mailtm')   return mailtm_fetchMessages(acc.base, acc.token);
+    if (acc.provider === '1secmail') return secmail_fetchMessages(acc.login, acc.domain);
     return [];
 }
 async function fetchMessageForAccount(acc, msgId) {
-    if (acc.provider === 'mailtm')    return mailtm_fetchMessage(acc.base, acc.token, msgId);
-    if (acc.provider === '1secmail')  return secmail_fetchMessage(acc.login, acc.domain, msgId);
-    if (acc.provider === 'guerrilla') return gm_fetchMessage(acc.sid, msgId);
+    if (acc.provider === 'mailtm')   return mailtm_fetchMessage(acc.base, acc.token, msgId);
+    if (acc.provider === '1secmail') return secmail_fetchMessage(acc.login, acc.domain, msgId);
     throw new Error('Unknown provider');
-}
-
-// ==========================================================
-//  SEND EMAIL (Guerrilla Mail only — real send from temp address)
-// ==========================================================
-async function sendEmail(to, subject, body) {
-    const acc = accounts[activeIndex];
-    if (!acc) throw new Error('No active account');
-    if (acc.provider === 'guerrilla') {
-        return gm_sendEmail(acc.sid, to, subject, body);
-    }
-    throw new Error('Send is only available for Guerrilla Mail accounts. Pick a Guerrilla Mail domain to send emails.');
 }
 
 // ==========================================================
@@ -449,15 +265,6 @@ function switchToAccount(idx) {
     emailText.className = 'email-address';
     emailDisplay.classList.add('active');
     copyBtn.style.display = 'flex';
-    composeBtn.style.display = 'inline-flex';
-    // Update compose button label based on send capability
-    if (acc.canSend) {
-        composeBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Compose`;
-        composeBtn.className = 'btn-send';
-    } else {
-        composeBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Compose`;
-        composeBtn.className = 'btn-secondary';
-    }
     renderAccountTabs();
     renderMessages(acc.messages);
 }
@@ -465,7 +272,7 @@ function removeAccount(idx) {
     accounts.splice(idx, 1); updateAccountCounter();
     if (!accounts.length) {
         activeIndex = -1; emailText.textContent = 'Click generate to create a new email'; emailText.className = 'email-placeholder';
-        emailDisplay.classList.remove('active'); copyBtn.style.display = 'none'; composeBtn.style.display = 'none';
+        emailDisplay.classList.remove('active'); copyBtn.style.display = 'none';
         refreshBtn.style.display = 'none'; autoRefreshBadge.style.display = 'none'; inboxSection.style.display = 'none'; accountTabs.style.display = 'none';
         if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
         updateGenerateButton(); renderAccountTabs(); return;
@@ -527,58 +334,10 @@ async function openEmail(id) {
     } catch (err) { modalBody.innerHTML = `<p style="color:var(--danger);">Failed: ${escapeHtml(err.message)}</p>`; }
 }
 
-function closeModal()  { modalOverlay.classList.remove('active'); }
-function closeCompose() { composeOverlay.classList.remove('active'); }
+function closeModal() { modalOverlay.classList.remove('active'); }
 modalClose.addEventListener('click', closeModal);
 modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
-composeClose.addEventListener('click', closeCompose);
-composeCancelBtn.addEventListener('click', closeCompose);
-composeOverlay.addEventListener('click', e => { if (e.target === composeOverlay) closeCompose(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeCompose(); } });
-
-// ==========================================================
-//  COMPOSE / SEND
-// ==========================================================
-composeBtn.addEventListener('click', () => {
-    if (activeIndex < 0) return;
-    const acc = accounts[activeIndex];
-    composeFrom.textContent = `From: ${acc.address}`;
-    if (!acc.canSend) {
-        composeFrom.textContent = `From: ${acc.address}  (receive-only \u2014 use Guerrilla Mail domain to send)`;
-    }
-    composeTo.value = ''; composeSubject.value = ''; composeBody.value = '';
-    composeSendBtn.disabled = !acc.canSend;
-    composeSendBtn.title = acc.canSend ? '' : 'Switch to a Guerrilla Mail account to send';
-    composeOverlay.classList.add('active');
-    composeTo.focus();
-});
-
-composeSendBtn.addEventListener('click', async () => {
-    const acc = accounts[activeIndex];
-    if (!acc?.canSend) { showToast('Pick a Guerrilla Mail domain to send emails'); return; }
-
-    const to = composeTo.value.trim();
-    const subject = composeSubject.value.trim();
-    const body = composeBody.value.trim();
-    if (!to) { showToast('Enter a recipient email'); composeTo.focus(); return; }
-    if (!subject) { showToast('Enter a subject'); composeSubject.focus(); return; }
-
-    composeSendBtn.disabled = true;
-    const prevHTML = composeSendBtn.innerHTML;
-    composeSendBtn.innerHTML = `<svg class="refresh-icon spinning" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg> Sending...`;
-
-    try {
-        await sendEmail(to, subject, body || '(empty)');
-        closeCompose();
-        showToast('Email sent! Check recipient inbox (or spam folder)');
-    } catch (err) {
-        console.error('Send failed:', err);
-        showToast('Send failed: ' + err.message);
-    } finally {
-        composeSendBtn.disabled = false;
-        composeSendBtn.innerHTML = prevHTML;
-    }
-});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 // ==========================================================
 //  REFRESH / POLLING
@@ -610,6 +369,7 @@ copyBtn.addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(a); } catch { const t = document.createElement('textarea'); t.value = a; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); }
     showToast('Copied!');
 });
+
 premiumToggle.addEventListener('change', () => { isPremium = premiumToggle.checked; domainSelector.style.display = isPremium ? '' : 'none'; });
 
 generateBtn.addEventListener('click', async () => {
@@ -623,19 +383,15 @@ generateBtn.addEventListener('click', async () => {
         accounts.push(account); activeIndex = accounts.length - 1;
         emailText.textContent = account.address; emailText.className = 'email-address';
         emailDisplay.classList.add('active'); copyBtn.style.display = 'flex';
-        composeBtn.style.display = 'inline-flex';
         refreshBtn.style.display = 'inline-flex'; autoRefreshBadge.style.display = 'inline-flex'; inboxSection.style.display = '';
         renderMessages([]); renderAccountTabs(); updateAccountCounter(); updateGenerateButton();
-        switchToAccount(activeIndex);
         startPolling();
-        showToast(account.canSend ? 'Email ready \u2014 Send + Receive!' : 'Email ready \u2014 Receive only');
+        showToast('Email generated successfully!');
     } catch (err) { console.error('Generate failed:', err); showToast('Error: ' + err.message); generateBtn.innerHTML = prev; }
     finally { generateBtn.disabled = accounts.length >= MAX_ACCOUNTS; }
 });
 
 refreshBtn.addEventListener('click', refreshInbox);
 
-// ==========================================================
-//  INIT
-// ==========================================================
+// ===== INIT =====
 updateAccountCounter(); updateGenerateButton(); fetchAllDomains();
