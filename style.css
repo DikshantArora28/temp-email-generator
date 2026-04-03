@@ -169,9 +169,28 @@ body {
     border-radius: var(--radius-sm);
     padding: 14px 18px;
     display: flex;
-    align-items: center;
-    gap: 12px;
+    flex-direction: column;
+    gap: 8px;
     animation: fadeIn 0.25s ease;
+}
+
+.domain-select-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+
+.domain-count {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--gold);
+    background: rgba(240, 192, 64, 0.15);
+    border: 1px solid rgba(240, 192, 64, 0.25);
+    padding: 3px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
 }
 
 @keyframes fadeIn {
@@ -791,6 +810,126 @@ body {
     border: none;
     background: white;
     border-radius: var(--radius-sm);
+}
+
+/* ===== Compose / Send Button ===== */
+.btn-send {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border-radius: var(--radius-sm);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+    font-family: inherit;
+    background: linear-gradient(135deg, #00b894, #00d2a0);
+    color: white;
+    box-shadow: 0 4px 16px rgba(0, 210, 160, 0.25);
+}
+
+.btn-send:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px rgba(0, 210, 160, 0.35);
+}
+
+.btn-send:active { transform: translateY(0); }
+.btn-send:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+/* ===== Compose Modal ===== */
+.compose-modal {
+    max-width: 560px;
+}
+
+.compose-modal .modal-header h3 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.compose-modal .modal-header h3 svg {
+    color: var(--success);
+}
+
+.compose-form {
+    padding: 20px 24px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.compose-from {
+    font-size: 13px;
+    color: var(--success);
+    background: var(--success-glow);
+    border: 1px solid rgba(0, 210, 160, 0.2);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-weight: 500;
+}
+
+.compose-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.compose-field label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.compose-field input,
+.compose-field textarea {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s ease;
+    resize: vertical;
+}
+
+.compose-field input:focus,
+.compose-field textarea:focus {
+    border-color: var(--accent);
+}
+
+.compose-field input::placeholder,
+.compose-field textarea::placeholder {
+    color: var(--text-muted);
+}
+
+.compose-note {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-muted);
+    padding: 0 2px;
+}
+
+.compose-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    padding-top: 4px;
+}
+
+.compose-actions .btn-secondary {
+    padding: 10px 20px;
+}
+
+.compose-actions .btn-send {
+    padding: 10px 24px;
 }
 
 /* ===== Toast ===== */

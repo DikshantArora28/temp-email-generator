@@ -36,12 +36,14 @@
                     <span class="toggle-slider"></span>
                 </label>
             </div>
-            <!-- Domain Selector (Premium Only) -->
             <div class="domain-selector" id="domainSelector" style="display:none;">
                 <label for="domainSelect">Pick a Domain:</label>
-                <select id="domainSelect">
-                    <option value="">Loading domains...</option>
-                </select>
+                <div class="domain-select-row">
+                    <select id="domainSelect">
+                        <option value="">Loading domains...</option>
+                    </select>
+                    <span class="domain-count" id="domainCount">0</span>
+                </div>
             </div>
         </section>
 
@@ -72,12 +74,19 @@
                         </svg>
                         Generate Email
                     </button>
+                    <button class="btn-send" id="composeBtn" style="display:none;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <line x1="22" y1="2" x2="11" y2="13"/>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                        </svg>
+                        Compose
+                    </button>
                     <button class="btn-secondary" id="refreshBtn" style="display:none;">
                         <svg class="refresh-icon" id="refreshIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
                             <polyline points="23 4 23 10 17 10"/>
                             <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
                         </svg>
-                        Refresh Inbox
+                        Refresh
                     </button>
                 </div>
                 <div class="auto-refresh-badge" id="autoRefreshBadge" style="display:none;">
@@ -99,7 +108,6 @@
                 </h2>
                 <span class="message-count" id="messageCount">0 messages</span>
             </div>
-
             <div class="inbox-list" id="inboxList">
                 <div class="empty-inbox" id="emptyInbox">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
@@ -134,8 +142,58 @@
                         <span id="modalDate">Jan 1, 2024</span>
                     </div>
                 </div>
-                <div class="modal-body" id="modalBody">
-                    Loading...
+                <div class="modal-body" id="modalBody">Loading...</div>
+            </div>
+        </div>
+
+        <!-- Compose Email Modal -->
+        <div class="modal-overlay" id="composeOverlay">
+            <div class="modal compose-modal">
+                <div class="modal-header">
+                    <h3>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                            <line x1="22" y1="2" x2="11" y2="13"/>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                        </svg>
+                        Compose Email
+                    </h3>
+                    <button class="modal-close" id="composeClose">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="compose-form">
+                    <div class="compose-from" id="composeFrom">Sending as: —</div>
+                    <div class="compose-field">
+                        <label for="composeTo">To:</label>
+                        <input type="email" id="composeTo" placeholder="recipient@example.com">
+                    </div>
+                    <div class="compose-field">
+                        <label for="composeSubject">Subject:</label>
+                        <input type="text" id="composeSubject" placeholder="Email subject">
+                    </div>
+                    <div class="compose-field">
+                        <label for="composeBody">Message:</label>
+                        <textarea id="composeBody" rows="8" placeholder="Write your message here..."></textarea>
+                    </div>
+                    <div class="compose-note">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                            <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                        </svg>
+                        Send is available for Mail.tm / Mail.gw accounts only
+                    </div>
+                    <div class="compose-actions">
+                        <button class="btn-secondary" id="composeCancelBtn">Cancel</button>
+                        <button class="btn-send" id="composeSendBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                                <line x1="22" y1="2" x2="11" y2="13"/>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                            </svg>
+                            Send Email
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

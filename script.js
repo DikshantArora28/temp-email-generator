@@ -1,13 +1,12 @@
 // ===== Multi-Provider Temp Email Engine =====
-// Providers: Mail.tm, Mail.gw, 1secmail
+// Providers: Mail.tm, Mail.gw (+ paginated), 1secmail
 const MAX_ACCOUNTS = 5;
 
 // State
 let accounts = [];
-// Each account: { provider, address, token?, login?, domain?, knownMessageIds, messages }
 let activeIndex = -1;
 let pollingInterval = null;
-let allDomains = []; // { domain, provider, label }
+let allDomains = [];
 let isPremium = false;
 
 // ===== Random US & European Person Names =====
@@ -48,36 +47,60 @@ function generateRandomString(len) {
 }
 
 // ===== DOM Elements =====
-const emailText      = document.getElementById('emailText');
-const emailDisplay   = document.getElementById('emailDisplay');
-const copyBtn        = document.getElementById('copyBtn');
-const generateBtn    = document.getElementById('generateBtn');
-const refreshBtn     = document.getElementById('refreshBtn');
-const refreshIcon    = document.getElementById('refreshIcon');
+const emailText        = document.getElementById('emailText');
+const emailDisplay     = document.getElementById('emailDisplay');
+const copyBtn          = document.getElementById('copyBtn');
+const generateBtn      = document.getElementById('generateBtn');
+const composeBtn       = document.getElementById('composeBtn');
+const refreshBtn       = document.getElementById('refreshBtn');
+const refreshIcon      = document.getElementById('refreshIcon');
 const autoRefreshBadge = document.getElementById('autoRefreshBadge');
-const inboxSection   = document.getElementById('inboxSection');
-const inboxList      = document.getElementById('inboxList');
-const emptyInbox     = document.getElementById('emptyInbox');
-const messageCount   = document.getElementById('messageCount');
-const modalOverlay   = document.getElementById('modalOverlay');
-const modalSubject   = document.getElementById('modalSubject');
-const modalFrom      = document.getElementById('modalFrom');
-const modalDate      = document.getElementById('modalDate');
-const modalBody      = document.getElementById('modalBody');
-const modalClose     = document.getElementById('modalClose');
-const toast          = document.getElementById('toast');
-const premiumToggle  = document.getElementById('premiumToggle');
-const domainSelector = document.getElementById('domainSelector');
-const domainSelect   = document.getElementById('domainSelect');
-const accountTabs    = document.getElementById('accountTabs');
-const accountCounter = document.getElementById('accountCounter');
+const inboxSection     = document.getElementById('inboxSection');
+const inboxList        = document.getElementById('inboxList');
+const emptyInbox       = document.getElementById('emptyInbox');
+const messageCount     = document.getElementById('messageCount');
+const modalOverlay     = document.getElementById('modalOverlay');
+const modalSubject     = document.getElementById('modalSubject');
+const modalFrom        = document.getElementById('modalFrom');
+const modalDate        = document.getElementById('modalDate');
+const modalBody        = document.getElementById('modalBody');
+const modalClose       = document.getElementById('modalClose');
+const toast            = document.getElementById('toast');
+const premiumToggle    = document.getElementById('premiumToggle');
+const domainSelector   = document.getElementById('domainSelector');
+const domainSelect     = document.getElementById('domainSelect');
+const domainCount      = document.getElementById('domainCount');
+const accountTabs      = document.getElementById('accountTabs');
+const accountCounter   = document.getElementById('accountCounter');
+// Compose
+const composeOverlay   = document.getElementById('composeOverlay');
+const composeClose     = document.getElementById('composeClose');
+const composeFrom      = document.getElementById('composeFrom');
+const composeTo        = document.getElementById('composeTo');
+const composeSubject   = document.getElementById('composeSubject');
+const composeBody      = document.getElementById('composeBody');
+const composeSendBtn   = document.getElementById('composeSendBtn');
+const composeCancelBtn = document.getElementById('composeCancelBtn');
 
 // ==========================================================
 //  PROVIDER: Mail.tm / Mail.gw  (JWT auth, same API shape)
 // ==========================================================
 async function mailtm_fetchDomains(base) {
     try {
-        const res = await fetch(`${base}/domains`, {
+        const res = await fetch(`${base}/domains?page=1`, {
+            headers: { 'Content-Type': 'application/json' },
+        });
+        if (!res.ok) return [];
+        const data = await res.json();
+        const list = data['hydra:member'] || data || [];
+        return list.map(d => d.domain);
+    } catch { return []; }
+}
+
+// Fetch page 2 as well for extra domains
+async function mailtm_fetchDomainsPage2(base) {
+    try {
+        const res = await fetch(`${base}/domains?page=2`, {
             headers: { 'Content-Type': 'application/json' },
         });
         if (!res.ok) return [];
@@ -109,32 +132,35 @@ async function mailtm_createAccount(base, address, password) {
 
 async function mailtm_fetchMessages(base, token) {
     const res = await fetch(`${base}/messages`, {
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
     });
     if (!res.ok) return [];
     const data = await res.json();
     return (data['hydra:member'] || data || []).map(m => ({
-        id:        m.id,
-        from:      m.from,
-        subject:   m.subject,
-        intro:     m.intro,
-        seen:      m.seen,
-        createdAt: m.createdAt,
-        _provider: 'mailtm',
+        id: m.id, from: m.from, subject: m.subject, intro: m.intro,
+        seen: m.seen, createdAt: m.createdAt, _provider: 'mailtm',
     }));
 }
 
 async function mailtm_fetchMessage(base, token, id) {
     const res = await fetch(`${base}/messages/${id}`, {
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Failed to load message');
+    return res.json();
+}
+
+// SEND email via Mail.tm / Mail.gw
+async function mailtm_sendMessage(base, token, to, subject, text) {
+    const res = await fetch(`${base}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ to: [{ address: to }], subject, text }),
+    });
+    if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Send failed (${res.status}): ${err}`);
+    }
     return res.json();
 }
 
@@ -147,71 +173,75 @@ async function secmail_fetchDomains() {
     try {
         const res = await fetch(`${SEC_BASE}?action=getDomainList`);
         if (!res.ok) return [];
-        return res.json();  // returns string[]
+        return res.json();
     } catch { return []; }
 }
 
 async function secmail_fetchMessages(login, domain) {
     try {
-        const res = await fetch(`${SEC_BASE}?action=getMessages&login=${login}&domain=${domain}`);
+        const res = await fetch(`${SEC_BASE}?action=getMessages&login=${encodeURIComponent(login)}&domain=${encodeURIComponent(domain)}`);
         if (!res.ok) return [];
         const data = await res.json();
         return data.map(m => ({
-            id:        m.id,
-            from:      { address: m.from, name: m.from.split('@')[0] },
-            subject:   m.subject,
-            intro:     '',
-            seen:      false,
-            createdAt: m.date,
-            _provider: '1secmail',
+            id: m.id, from: { address: m.from, name: m.from.split('@')[0] },
+            subject: m.subject, intro: '', seen: false, createdAt: m.date, _provider: '1secmail',
         }));
     } catch { return []; }
 }
 
 async function secmail_fetchMessage(login, domain, id) {
-    const res = await fetch(`${SEC_BASE}?action=readMessage&login=${login}&domain=${domain}&id=${id}`);
+    const res = await fetch(`${SEC_BASE}?action=readMessage&login=${encodeURIComponent(login)}&domain=${encodeURIComponent(domain)}&id=${id}`);
     if (!res.ok) throw new Error('Failed to load message');
     const m = await res.json();
     return {
-        id:        m.id,
-        from:      { address: m.from, name: m.from.split('@')[0] },
-        subject:   m.subject,
-        text:      m.textBody || '',
-        html:      m.htmlBody ? [m.htmlBody] : [],
-        createdAt: m.date,
+        id: m.id, from: { address: m.from, name: m.from.split('@')[0] },
+        subject: m.subject, text: m.textBody || '', html: m.htmlBody ? [m.htmlBody] : [], createdAt: m.date,
     };
 }
 
 // ==========================================================
-//  DOMAIN FETCHING — all providers
+//  DOMAIN FETCHING — all providers, paginated
 // ==========================================================
 async function fetchAllDomains() {
     domainSelect.innerHTML = '<option>Loading domains...</option>';
 
     const results = await Promise.allSettled([
         mailtm_fetchDomains('https://api.mail.tm'),
+        mailtm_fetchDomainsPage2('https://api.mail.tm'),
         mailtm_fetchDomains('https://api.mail.gw'),
+        mailtm_fetchDomainsPage2('https://api.mail.gw'),
         secmail_fetchDomains(),
     ]);
 
     allDomains = [];
+    const existing = new Set();
 
-    // Mail.tm domains
-    const tmDomains = results[0].status === 'fulfilled' ? results[0].value : [];
-    tmDomains.forEach(d => allDomains.push({ domain: d, provider: 'mailtm', base: 'https://api.mail.tm' }));
+    function addDomains(domains, provider, base) {
+        domains.forEach(d => {
+            if (!existing.has(d)) {
+                allDomains.push({ domain: d, provider, base });
+                existing.add(d);
+            }
+        });
+    }
 
-    // Mail.gw domains (skip duplicates)
-    const gwDomains = results[1].status === 'fulfilled' ? results[1].value : [];
-    const existing = new Set(allDomains.map(d => d.domain));
-    gwDomains.forEach(d => {
-        if (!existing.has(d)) {
-            allDomains.push({ domain: d, provider: 'mailtm', base: 'https://api.mail.gw' });
-            existing.add(d);
-        }
-    });
+    // Mail.tm page 1 + 2
+    addDomains(results[0].status === 'fulfilled' ? results[0].value : [], 'mailtm', 'https://api.mail.tm');
+    addDomains(results[1].status === 'fulfilled' ? results[1].value : [], 'mailtm', 'https://api.mail.tm');
 
-    // 1secmail domains
-    const secDomains = results[2].status === 'fulfilled' ? results[2].value : [];
+    // Mail.gw page 1 + 2
+    addDomains(results[2].status === 'fulfilled' ? results[2].value : [], 'mailtm', 'https://api.mail.gw');
+    addDomains(results[3].status === 'fulfilled' ? results[3].value : [], 'mailtm', 'https://api.mail.gw');
+
+    // 1secmail — use API result or hardcoded fallback (CORS blocks 1secmail in some envs)
+    let secDomains = results[4].status === 'fulfilled' ? results[4].value : [];
+    if (secDomains.length === 0) {
+        secDomains = [
+            '1secmail.com','1secmail.org','1secmail.net',
+            'esiix.com','wwjmp.com','kzccv.com',
+            'dpptd.com','txcct.com','rteet.com','dcctb.com',
+        ];
+    }
     secDomains.forEach(d => {
         if (!existing.has(d)) {
             allDomains.push({ domain: d, provider: '1secmail' });
@@ -219,7 +249,8 @@ async function fetchAllDomains() {
         }
     });
 
-    console.log(`Loaded ${allDomains.length} domains from ${tmDomains.length} (mail.tm) + ${gwDomains.length} (mail.gw) + ${secDomains.length} (1secmail)`);
+    console.log(`Loaded ${allDomains.length} total domains`);
+    domainCount.textContent = `${allDomains.length} domains`;
     populateDomainDropdown();
 }
 
@@ -230,19 +261,16 @@ function populateDomainDropdown() {
     domainSelect.innerHTML = '';
 
     if (allDomains.length === 0) {
-        const opt = document.createElement('option');
-        opt.textContent = 'No domains available — try again';
-        domainSelect.appendChild(opt);
+        domainSelect.innerHTML = '<option>No domains available</option>';
         return;
     }
 
-    // Group by provider
     const mailtmDomains  = allDomains.filter(d => d.provider === 'mailtm');
     const secmailDomains = allDomains.filter(d => d.provider === '1secmail');
 
     if (mailtmDomains.length > 0) {
         const grp = document.createElement('optgroup');
-        grp.label = `Mail.tm / Mail.gw  (${mailtmDomains.length} domains)`;
+        grp.label = `Mail.tm / Mail.gw  (${mailtmDomains.length})  \u2014  Send + Receive`;
         mailtmDomains.forEach(d => {
             const opt = document.createElement('option');
             opt.value = JSON.stringify({ provider: 'mailtm', domain: d.domain, base: d.base });
@@ -254,7 +282,7 @@ function populateDomainDropdown() {
 
     if (secmailDomains.length > 0) {
         const grp = document.createElement('optgroup');
-        grp.label = `1secMail  (${secmailDomains.length} domains)`;
+        grp.label = `1secMail  (${secmailDomains.length})  \u2014  Receive Only`;
         secmailDomains.forEach(d => {
             const opt = document.createElement('option');
             opt.value = JSON.stringify({ provider: '1secmail', domain: d.domain });
@@ -266,19 +294,17 @@ function populateDomainDropdown() {
 }
 
 // ==========================================================
-//  CREATE ACCOUNT  (multi-provider)
+//  CREATE ACCOUNT (multi-provider)
 // ==========================================================
 async function createAccount(selection) {
     const person = getRandomName();
     const suffix = generateRandomString(2);
     const username = `${person.full}${suffix}`;
 
-    // Pick domain info
     let domainInfo;
     if (selection) {
         domainInfo = JSON.parse(selection);
     } else {
-        // Default: pick first available
         domainInfo = allDomains[0];
         if (!domainInfo) throw new Error('No domains loaded. Refresh the page.');
     }
@@ -289,23 +315,17 @@ async function createAccount(selection) {
         const password = generateRandomString(16);
         const { id, token } = await mailtm_createAccount(domainInfo.base, address, password);
         return {
-            provider: 'mailtm',
-            base:     domainInfo.base,
-            id, address, token,
-            knownMessageIds: new Set(),
-            messages: [],
+            provider: 'mailtm', base: domainInfo.base,
+            id, address, token, canSend: true,
+            knownMessageIds: new Set(), messages: [],
         };
     }
 
     if (domainInfo.provider === '1secmail') {
-        // 1secmail doesn't need account creation — just use the address
         return {
-            provider: '1secmail',
-            address,
-            login:  username,
-            domain: domainInfo.domain,
-            knownMessageIds: new Set(),
-            messages: [],
+            provider: '1secmail', address,
+            login: username, domain: domainInfo.domain, canSend: false,
+            knownMessageIds: new Set(), messages: [],
         };
     }
 
@@ -316,23 +336,26 @@ async function createAccount(selection) {
 //  FETCH MESSAGES (multi-provider)
 // ==========================================================
 async function fetchMessagesForAccount(acc) {
-    if (acc.provider === 'mailtm') {
-        return mailtm_fetchMessages(acc.base, acc.token);
-    }
-    if (acc.provider === '1secmail') {
-        return secmail_fetchMessages(acc.login, acc.domain);
-    }
+    if (acc.provider === 'mailtm')  return mailtm_fetchMessages(acc.base, acc.token);
+    if (acc.provider === '1secmail') return secmail_fetchMessages(acc.login, acc.domain);
     return [];
 }
 
 async function fetchMessageForAccount(acc, msgId) {
-    if (acc.provider === 'mailtm') {
-        return mailtm_fetchMessage(acc.base, acc.token, msgId);
-    }
-    if (acc.provider === '1secmail') {
-        return secmail_fetchMessage(acc.login, acc.domain, msgId);
-    }
+    if (acc.provider === 'mailtm')  return mailtm_fetchMessage(acc.base, acc.token, msgId);
+    if (acc.provider === '1secmail') return secmail_fetchMessage(acc.login, acc.domain, msgId);
     throw new Error('Unknown provider');
+}
+
+// ==========================================================
+//  SEND EMAIL
+// ==========================================================
+async function sendEmail(to, subject, text) {
+    const acc = accounts[activeIndex];
+    if (!acc || acc.provider !== 'mailtm') {
+        throw new Error('Send is only supported for Mail.tm / Mail.gw accounts');
+    }
+    return mailtm_sendMessage(acc.base, acc.token, to, subject, text);
 }
 
 // ==========================================================
@@ -348,8 +371,8 @@ function formatTime(dateString) {
     const date = new Date(dateString);
     const now = new Date();
     const diff = now - date;
-    if (diff < 60000)   return 'Just now';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 60000)    return 'Just now';
+    if (diff < 3600000)  return `${Math.floor(diff / 60000)}m ago`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
@@ -414,6 +437,8 @@ function switchToAccount(idx) {
     emailText.className = 'email-address';
     emailDisplay.classList.add('active');
     copyBtn.style.display = 'flex';
+    // Show/hide compose based on provider
+    composeBtn.style.display = acc.canSend ? 'inline-flex' : 'none';
     renderAccountTabs();
     renderMessages(acc.messages);
 }
@@ -428,6 +453,7 @@ function removeAccount(idx) {
         emailText.className = 'email-placeholder';
         emailDisplay.classList.remove('active');
         copyBtn.style.display = 'none';
+        composeBtn.style.display = 'none';
         refreshBtn.style.display = 'none';
         autoRefreshBadge.style.display = 'none';
         inboxSection.style.display = 'none';
@@ -519,7 +545,6 @@ async function openEmail(id) {
             Object.assign(iframe.style, { width: '100%', minHeight: '300px', border: 'none', borderRadius: '8px', background: 'white' });
             modalBody.innerHTML = '';
             modalBody.appendChild(iframe);
-
             const htmlContent = msg.html.join ? msg.html.join('') : msg.html;
             iframe.srcdoc = `<html><head><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;line-height:1.6;color:#333;padding:16px;margin:0;word-wrap:break-word}img{max-width:100%;height:auto}a{color:#6c5ce7}pre{overflow-x:auto}</style></head><body>${htmlContent}</body></html>`;
             iframe.onload = () => { try { iframe.style.height = Math.min(iframe.contentDocument.body.scrollHeight + 32, 600) + 'px'; } catch {} };
@@ -533,10 +558,59 @@ async function openEmail(id) {
     }
 }
 
-function closeModal() { modalOverlay.classList.remove('active'); }
+function closeModal()   { modalOverlay.classList.remove('active'); }
+function closeCompose()  { composeOverlay.classList.remove('active'); }
+
 modalClose.addEventListener('click', closeModal);
 modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+composeClose.addEventListener('click', closeCompose);
+composeCancelBtn.addEventListener('click', closeCompose);
+composeOverlay.addEventListener('click', e => { if (e.target === composeOverlay) closeCompose(); });
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeModal(); closeCompose(); }
+});
+
+// ==========================================================
+//  COMPOSE / SEND
+// ==========================================================
+composeBtn.addEventListener('click', () => {
+    if (activeIndex < 0) return;
+    const acc = accounts[activeIndex];
+    if (!acc.canSend) {
+        showToast('Send is only available for Mail.tm / Mail.gw accounts');
+        return;
+    }
+    composeFrom.textContent = `Sending as: ${acc.address}`;
+    composeTo.value = '';
+    composeSubject.value = '';
+    composeBody.value = '';
+    composeOverlay.classList.add('active');
+    composeTo.focus();
+});
+
+composeSendBtn.addEventListener('click', async () => {
+    const to      = composeTo.value.trim();
+    const subject = composeSubject.value.trim();
+    const body    = composeBody.value.trim();
+
+    if (!to) { showToast('Please enter a recipient email'); composeTo.focus(); return; }
+    if (!subject) { showToast('Please enter a subject'); composeSubject.focus(); return; }
+
+    composeSendBtn.disabled = true;
+    composeSendBtn.innerHTML = `<svg class="refresh-icon spinning" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg> Sending...`;
+
+    try {
+        await sendEmail(to, subject, body || '(empty)');
+        closeCompose();
+        showToast('Email sent successfully!');
+    } catch (err) {
+        console.error('Send failed:', err);
+        showToast('Send failed: ' + err.message);
+    } finally {
+        composeSendBtn.disabled = false;
+        composeSendBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Email`;
+    }
+});
 
 // ==========================================================
 //  REFRESH / POLLING
@@ -589,7 +663,7 @@ copyBtn.addEventListener('click', async () => {
 
 premiumToggle.addEventListener('change', () => {
     isPremium = premiumToggle.checked;
-    domainSelector.style.display = isPremium ? 'flex' : 'none';
+    domainSelector.style.display = isPremium ? '' : 'none';
 });
 
 generateBtn.addEventListener('click', async () => {
@@ -613,6 +687,7 @@ generateBtn.addEventListener('click', async () => {
         emailText.className = 'email-address';
         emailDisplay.classList.add('active');
         copyBtn.style.display = 'flex';
+        composeBtn.style.display = account.canSend ? 'inline-flex' : 'none';
         refreshBtn.style.display = 'inline-flex';
         autoRefreshBadge.style.display = 'inline-flex';
         inboxSection.style.display = '';
