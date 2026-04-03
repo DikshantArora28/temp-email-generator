@@ -158,13 +158,23 @@
                     <!-- Phone Numbers Grid -->
                     <div class="phone-grid" id="phoneGrid"></div>
 
-                    <!-- Embedded SMS Viewer -->
+                    <!-- Inline SMS Viewer -->
                     <div class="sms-viewer" id="smsViewer" style="display:none;">
                         <div class="sms-viewer-header">
                             <h3 id="smsViewerTitle">SMS Inbox</h3>
-                            <button class="sms-viewer-close" id="smsViewerClose" title="Close SMS viewer">&times;</button>
+                            <div class="sms-viewer-actions">
+                                <button class="sms-refresh-btn" id="smsRefreshBtn" title="Refresh messages">
+                                    <svg class="refresh-icon" id="smsRefreshIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                        <polyline points="23 4 23 10 17 10"/>
+                                        <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+                                    </svg>
+                                </button>
+                                <button class="sms-viewer-close" id="smsViewerClose" title="Close">&times;</button>
+                            </div>
                         </div>
-                        <iframe id="smsViewerFrame" class="sms-viewer-frame" sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms"></iframe>
+                        <div class="sms-list" id="smsList">
+                            <div class="sms-loading">Loading messages...</div>
+                        </div>
                     </div>
 
                     <div class="phone-note">

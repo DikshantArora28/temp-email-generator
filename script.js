@@ -468,30 +468,136 @@ function renderPhoneNumbers() {
 
     phoneGrid.querySelectorAll('.phone-sms-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            openSmsViewer(btn.dataset.url, btn.closest('.phone-item').querySelector('.phone-number')?.textContent || 'Phone');
+            const item = btn.closest('.phone-item');
+            const label = item?.querySelector('.phone-number')?.textContent || 'Phone';
+            openSmsViewer(btn.dataset.url, label);
         });
     });
 }
 
-// SMS Viewer (embedded iframe)
+// ==========================================================
+//  SMS VIEWER — fetch, parse & render messages inline
+// ==========================================================
+const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 const smsViewer = document.getElementById('smsViewer');
-const smsViewerFrame = document.getElementById('smsViewerFrame');
+const smsList = document.getElementById('smsList');
 const smsViewerTitle = document.getElementById('smsViewerTitle');
 const smsViewerClose = document.getElementById('smsViewerClose');
+const smsRefreshBtn = document.getElementById('smsRefreshBtn');
+const smsRefreshIcon = document.getElementById('smsRefreshIcon');
+let currentSmsUrl = '';
 
 function openSmsViewer(url, numberLabel) {
+    currentSmsUrl = url;
     smsViewerTitle.textContent = `SMS Inbox \u2014 ${numberLabel}`;
-    smsViewerFrame.src = url;
+    smsList.innerHTML = '<div class="sms-loading"><div class="skeleton" style="height:120px;border-radius:8px;"></div></div>';
     smsViewer.style.display = '';
     smsViewer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    fetchAndRenderSms(url);
 }
 
 function closeSmsViewer() {
     smsViewer.style.display = 'none';
-    smsViewerFrame.src = '';
+    smsList.innerHTML = '';
+    currentSmsUrl = '';
+}
+
+async function fetchAndRenderSms(url) {
+    try {
+        smsRefreshIcon.classList.add('spinning');
+        const proxyUrl = CORS_PROXY + encodeURIComponent(url);
+        const res = await fetch(proxyUrl);
+        if (!res.ok) throw new Error(`Fetch failed (${res.status})`);
+        const html = await res.text();
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+
+        // Parse receive-smss.com format: .message_details rows with col divs
+        const rows = doc.querySelectorAll('.message_details');
+        const messages = [];
+
+        rows.forEach(row => {
+            const cols = row.querySelectorAll('[class*=col]');
+            const texts = [...cols].map(c => c.textContent.trim());
+            if (texts.length >= 2) {
+                let message = texts[0] || '';
+                let sender = texts[1] || '';
+                let time = texts[2] || '';
+                // Clean "Message" and "Sender" and "Time" prefixes
+                message = message.replace(/^Message\s*/i, '');
+                sender = sender.replace(/^Sender\s*/i, '');
+                time = time.replace(/^Time\s*/i, '');
+                if (message) {
+                    messages.push({ message, sender, time });
+                }
+            }
+        });
+
+        // If no .message_details found, try quackr/generic table parsing
+        if (messages.length === 0) {
+            const trs = doc.querySelectorAll('table tr, .sms-row, .message-row');
+            trs.forEach(tr => {
+                const cells = tr.querySelectorAll('td, .cell');
+                if (cells.length >= 2) {
+                    messages.push({
+                        sender: cells[0]?.textContent?.trim() || 'Unknown',
+                        message: cells[1]?.textContent?.trim() || '',
+                        time: cells[2]?.textContent?.trim() || '',
+                    });
+                }
+            });
+        }
+
+        renderSmsMessages(messages);
+    } catch (err) {
+        console.error('SMS fetch failed:', err);
+        // Fallback: open in new tab
+        smsList.innerHTML = `
+            <div class="sms-empty">
+                <p>Could not load messages inline.</p>
+                <button class="phone-sms-btn" style="margin-top:10px;" onclick="window.open('${escapeHtml(url)}','_blank')">Open in New Tab</button>
+            </div>
+        `;
+    } finally {
+        smsRefreshIcon.classList.remove('spinning');
+    }
+}
+
+function highlightCodes(text) {
+    // Highlight numeric codes (4-8 digits) that look like verification codes
+    return escapeHtml(text).replace(/\b(\d{4,8})\b/g, '<span class="sms-code">$1</span>');
+}
+
+function renderSmsMessages(messages) {
+    smsList.innerHTML = '';
+    if (messages.length === 0) {
+        smsList.innerHTML = '<div class="sms-empty">No messages found for this number</div>';
+        return;
+    }
+
+    messages.forEach(msg => {
+        const initial = msg.sender ? msg.sender.charAt(0).toUpperCase() : '?';
+        const div = document.createElement('div');
+        div.className = 'sms-msg';
+        div.innerHTML = `
+            <div class="sms-msg-icon">${escapeHtml(initial)}</div>
+            <div class="sms-msg-content">
+                <div class="sms-msg-top">
+                    <span class="sms-msg-sender">${escapeHtml(msg.sender || 'Unknown')}</span>
+                    <span class="sms-msg-time">${escapeHtml(msg.time || '')}</span>
+                </div>
+                <div class="sms-msg-text">${highlightCodes(msg.message)}</div>
+            </div>
+        `;
+        smsList.appendChild(div);
+    });
 }
 
 smsViewerClose.addEventListener('click', closeSmsViewer);
+smsRefreshBtn.addEventListener('click', () => {
+    if (currentSmsUrl) fetchAndRenderSms(currentSmsUrl);
+});
 
 // Country filter buttons
 document.querySelectorAll('.country-btn').forEach(btn => {
