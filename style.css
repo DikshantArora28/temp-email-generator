@@ -185,6 +185,16 @@ body {
     white-space: nowrap;
 }
 
+.country-flag-img {
+    width: 18px;
+    height: 13px;
+    object-fit: cover;
+    border-radius: 2px;
+    vertical-align: middle;
+    position: relative;
+    top: -1px;
+}
+
 .country-btn:hover {
     border-color: var(--border-light);
     background: var(--bg-hover);
