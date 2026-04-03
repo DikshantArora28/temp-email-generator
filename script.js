@@ -1,5 +1,5 @@
 // ===== Multi-Provider Temp Email Engine =====
-// Providers: Mail.tm, Mail.gw, 1secmail
+// Providers: Mail.tm, Mail.gw
 const MAX_ACCOUNTS = 5;
 
 let accounts = [];
@@ -108,27 +108,6 @@ async function mailtm_fetchMessage(base, token, id) {
 }
 
 // ==========================================================
-//  PROVIDER: 1secmail
-// ==========================================================
-const SEC_BASE = 'https://www.1secmail.com/api/v1/';
-async function secmail_fetchDomains() {
-    try { const r = await fetch(`${SEC_BASE}?action=getDomainList`); if (!r.ok) return []; return r.json(); } catch { return []; }
-}
-async function secmail_fetchMessages(login, domain) {
-    try {
-        const r = await fetch(`${SEC_BASE}?action=getMessages&login=${encodeURIComponent(login)}&domain=${encodeURIComponent(domain)}`);
-        if (!r.ok) return [];
-        return (await r.json()).map(m => ({ id: m.id, from: { address: m.from, name: m.from.split('@')[0] }, subject: m.subject, intro: '', seen: false, createdAt: m.date }));
-    } catch { return []; }
-}
-async function secmail_fetchMessage(login, domain, id) {
-    const r = await fetch(`${SEC_BASE}?action=readMessage&login=${encodeURIComponent(login)}&domain=${encodeURIComponent(domain)}&id=${id}`);
-    if (!r.ok) throw new Error('Failed to load');
-    const m = await r.json();
-    return { id: m.id, from: { address: m.from, name: m.from.split('@')[0] }, subject: m.subject, text: m.textBody || '', html: m.htmlBody ? [m.htmlBody] : [], createdAt: m.date };
-}
-
-// ==========================================================
 //  DOMAIN FETCHING
 // ==========================================================
 async function fetchAllDomains() {
@@ -136,18 +115,14 @@ async function fetchAllDomains() {
     const results = await Promise.allSettled([
         mailtm_fetchDomains('https://api.mail.tm'),
         mailtm_fetchDomains('https://api.mail.gw'),
-        secmail_fetchDomains(),
     ]);
     allDomains = [];
     const existing = new Set();
-    function add(domains, provider, base) {
-        domains.forEach(d => { if (!existing.has(d)) { allDomains.push({ domain: d, provider, base }); existing.add(d); } });
+    function add(domains, base) {
+        domains.forEach(d => { if (!existing.has(d)) { allDomains.push({ domain: d, provider: 'mailtm', base }); existing.add(d); } });
     }
-    add(results[0].status === 'fulfilled' ? results[0].value : [], 'mailtm', 'https://api.mail.tm');
-    add(results[1].status === 'fulfilled' ? results[1].value : [], 'mailtm', 'https://api.mail.gw');
-    let secDomains = results[2].status === 'fulfilled' ? results[2].value : [];
-    if (secDomains.length === 0) secDomains = ['1secmail.com','1secmail.org','1secmail.net','esiix.com','wwjmp.com','kzccv.com','dpptd.com','txcct.com','rteet.com','dcctb.com'];
-    secDomains.forEach(d => { if (!existing.has(d)) { allDomains.push({ domain: d, provider: '1secmail' }); existing.add(d); } });
+    add(results[0].status === 'fulfilled' ? results[0].value : [], 'https://api.mail.tm');
+    add(results[1].status === 'fulfilled' ? results[1].value : [], 'https://api.mail.gw');
     console.log(`Loaded ${allDomains.length} total domains`);
     domainCount.textContent = `${allDomains.length} domains`;
     populateDomainDropdown();
@@ -156,59 +131,44 @@ async function fetchAllDomains() {
 // ==========================================================
 //  DROPDOWN
 // ==========================================================
-// Chemical/industrial-looking domains get special branding
-const CHEMICAL_DOMAINS = {
-    'esiix.com':  'ESIIX Corp',
-    'kzccv.com':  'KZCCV Industries',
-    'dpptd.com':  'DPPTD Chemicals',
-    'txcct.com':  'TXCCT Synthetics',
-    'dcctb.com':  'DCCTB Reagents',
-    'rteet.com':  'RTEET Polymers',
-    'wwjmp.com':  'WWJMP Compounds',
+// Chemical/industrial branding for domains that have that look
+const CHEMICAL_LABELS = {
+    'oakon.com':              'Oakon Chemicals',
+    'teihu.com':              'Teihu Polymers',
+    'sharebot.net':           'Sharebot Synthetics',
+    'questtechsystems.com':   'QuestTech Systems',
+    'raleigh-construction.com': 'Raleigh Industrial',
+    'pastryofistanbul.com':   'Pastry of Istanbul',
 };
 
 function populateDomainDropdown() {
     domainSelect.innerHTML = '';
     if (allDomains.length === 0) { domainSelect.innerHTML = '<option>No domains available</option>'; return; }
 
-    // Split domains into groups
-    const chemicalDomains = allDomains.filter(d => CHEMICAL_DOMAINS[d.domain]);
-    const mailtmDomains   = allDomains.filter(d => d.provider === 'mailtm');
-    const otherSecmail    = allDomains.filter(d => d.provider === '1secmail' && !CHEMICAL_DOMAINS[d.domain]);
+    // Split: domains with chemical/industrial labels vs plain
+    const labeledDomains = allDomains.filter(d => CHEMICAL_LABELS[d.domain]);
+    const plainDomains   = allDomains.filter(d => !CHEMICAL_LABELS[d.domain]);
 
     // Chemical & Industrial group first
-    if (chemicalDomains.length > 0) {
+    if (labeledDomains.length > 0) {
         const grp = document.createElement('optgroup');
-        grp.label = `\u2697 Chemical & Industrial  (${chemicalDomains.length})`;
-        chemicalDomains.forEach(d => {
-            const opt = document.createElement('option');
-            opt.value = JSON.stringify({ provider: d.provider, domain: d.domain, base: d.base });
-            opt.textContent = `${CHEMICAL_DOMAINS[d.domain]}  \u2014  @${d.domain}`;
-            grp.appendChild(opt);
-        });
-        domainSelect.appendChild(grp);
-    }
-
-    // Company domains
-    if (mailtmDomains.length > 0) {
-        const grp = document.createElement('optgroup');
-        grp.label = `\uD83C\uDFE2 Business Domains  (${mailtmDomains.length})`;
-        mailtmDomains.forEach(d => {
+        grp.label = `\u2697 Chemical & Industrial  (${labeledDomains.length})`;
+        labeledDomains.forEach(d => {
             const opt = document.createElement('option');
             opt.value = JSON.stringify({ provider: 'mailtm', domain: d.domain, base: d.base });
-            opt.textContent = `@${d.domain}`;
+            opt.textContent = `${CHEMICAL_LABELS[d.domain]}  \u2014  @${d.domain}`;
             grp.appendChild(opt);
         });
         domainSelect.appendChild(grp);
     }
 
     // Other domains
-    if (otherSecmail.length > 0) {
+    if (plainDomains.length > 0) {
         const grp = document.createElement('optgroup');
-        grp.label = `Other Domains  (${otherSecmail.length})`;
-        otherSecmail.forEach(d => {
+        grp.label = `Other Domains  (${plainDomains.length})`;
+        plainDomains.forEach(d => {
             const opt = document.createElement('option');
-            opt.value = JSON.stringify({ provider: '1secmail', domain: d.domain });
+            opt.value = JSON.stringify({ provider: 'mailtm', domain: d.domain, base: d.base });
             opt.textContent = `@${d.domain}`;
             grp.appendChild(opt);
         });
@@ -230,9 +190,6 @@ async function createAccount(selection) {
         const { id, token } = await mailtm_createAccount(domainInfo.base, address, password);
         return { provider: 'mailtm', base: domainInfo.base, id, address, token, knownMessageIds: new Set(), messages: [] };
     }
-    if (domainInfo.provider === '1secmail') {
-        return { provider: '1secmail', address, login: username, domain: domainInfo.domain, knownMessageIds: new Set(), messages: [] };
-    }
     throw new Error('Unknown provider');
 }
 
@@ -241,12 +198,10 @@ async function createAccount(selection) {
 // ==========================================================
 async function fetchMessagesForAccount(acc) {
     if (acc.provider === 'mailtm')   return mailtm_fetchMessages(acc.base, acc.token);
-    if (acc.provider === '1secmail') return secmail_fetchMessages(acc.login, acc.domain);
     return [];
 }
 async function fetchMessageForAccount(acc, msgId) {
     if (acc.provider === 'mailtm')   return mailtm_fetchMessage(acc.base, acc.token, msgId);
-    if (acc.provider === '1secmail') return secmail_fetchMessage(acc.login, acc.domain, msgId);
     throw new Error('Unknown provider');
 }
 
