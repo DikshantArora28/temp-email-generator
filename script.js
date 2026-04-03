@@ -145,14 +145,14 @@ async function secmail_fetchMessage(login, domain, id) {
 const GM_BASE = 'https://api.guerrillamail.com/ajax.php';
 
 async function gm_getAddress() {
-    const res = await fetch(`${GM_BASE}?f=get_email_address&lang=en`, { credentials: 'include' });
+    const res = await fetch(`${GM_BASE}?f=get_email_address&lang=en`, {});
     if (!res.ok) throw new Error('Guerrilla Mail unavailable');
     const data = await res.json();
     return { address: data.email_addr, sid: data.sid_token, alias: data.alias };
 }
 
 async function gm_setAddress(sid, username) {
-    const res = await fetch(`${GM_BASE}?f=set_email_user&email_user=${encodeURIComponent(username)}&lang=en&sid_token=${encodeURIComponent(sid)}`, { credentials: 'include' });
+    const res = await fetch(`${GM_BASE}?f=set_email_user&email_user=${encodeURIComponent(username)}&lang=en&sid_token=${encodeURIComponent(sid)}`, {});
     if (!res.ok) throw new Error('Failed to set address');
     const data = await res.json();
     return { address: data.email_addr, sid: data.sid_token };
@@ -160,7 +160,7 @@ async function gm_setAddress(sid, username) {
 
 async function gm_fetchMessages(sid) {
     try {
-        const res = await fetch(`${GM_BASE}?f=check_email&sid_token=${encodeURIComponent(sid)}&seq=0`, { credentials: 'include' });
+        const res = await fetch(`${GM_BASE}?f=check_email&sid_token=${encodeURIComponent(sid)}&seq=0`, {});
         if (!res.ok) return [];
         const data = await res.json();
         return (data.list || []).map(m => ({
@@ -172,7 +172,7 @@ async function gm_fetchMessages(sid) {
 }
 
 async function gm_fetchMessage(sid, id) {
-    const res = await fetch(`${GM_BASE}?f=fetch_email&sid_token=${encodeURIComponent(sid)}&email_id=${id}`, { credentials: 'include' });
+    const res = await fetch(`${GM_BASE}?f=fetch_email&sid_token=${encodeURIComponent(sid)}&email_id=${id}`, {});
     if (!res.ok) throw new Error('Failed to load');
     const m = await res.json();
     return {
