@@ -156,14 +156,43 @@ async function fetchAllDomains() {
 // ==========================================================
 //  DROPDOWN
 // ==========================================================
+// Chemical/industrial-looking domains get special branding
+const CHEMICAL_DOMAINS = {
+    'esiix.com':  'ESIIX Corp',
+    'kzccv.com':  'KZCCV Industries',
+    'dpptd.com':  'DPPTD Chemicals',
+    'txcct.com':  'TXCCT Synthetics',
+    'dcctb.com':  'DCCTB Reagents',
+    'rteet.com':  'RTEET Polymers',
+    'wwjmp.com':  'WWJMP Compounds',
+};
+
 function populateDomainDropdown() {
     domainSelect.innerHTML = '';
     if (allDomains.length === 0) { domainSelect.innerHTML = '<option>No domains available</option>'; return; }
-    const mailtmDomains  = allDomains.filter(d => d.provider === 'mailtm');
-    const secmailDomains = allDomains.filter(d => d.provider === '1secmail');
+
+    // Split domains into groups
+    const chemicalDomains = allDomains.filter(d => CHEMICAL_DOMAINS[d.domain]);
+    const mailtmDomains   = allDomains.filter(d => d.provider === 'mailtm');
+    const otherSecmail    = allDomains.filter(d => d.provider === '1secmail' && !CHEMICAL_DOMAINS[d.domain]);
+
+    // Chemical & Industrial group first
+    if (chemicalDomains.length > 0) {
+        const grp = document.createElement('optgroup');
+        grp.label = `\u2697 Chemical & Industrial  (${chemicalDomains.length})`;
+        chemicalDomains.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = JSON.stringify({ provider: d.provider, domain: d.domain, base: d.base });
+            opt.textContent = `${CHEMICAL_DOMAINS[d.domain]}  \u2014  @${d.domain}`;
+            grp.appendChild(opt);
+        });
+        domainSelect.appendChild(grp);
+    }
+
+    // Company domains
     if (mailtmDomains.length > 0) {
         const grp = document.createElement('optgroup');
-        grp.label = `Mail.tm / Mail.gw  (${mailtmDomains.length} domains)`;
+        grp.label = `\uD83C\uDFE2 Business Domains  (${mailtmDomains.length})`;
         mailtmDomains.forEach(d => {
             const opt = document.createElement('option');
             opt.value = JSON.stringify({ provider: 'mailtm', domain: d.domain, base: d.base });
@@ -172,10 +201,12 @@ function populateDomainDropdown() {
         });
         domainSelect.appendChild(grp);
     }
-    if (secmailDomains.length > 0) {
+
+    // Other domains
+    if (otherSecmail.length > 0) {
         const grp = document.createElement('optgroup');
-        grp.label = `1secMail  (${secmailDomains.length} domains)`;
-        secmailDomains.forEach(d => {
+        grp.label = `Other Domains  (${otherSecmail.length})`;
+        otherSecmail.forEach(d => {
             const opt = document.createElement('option');
             opt.value = JSON.stringify({ provider: '1secmail', domain: d.domain });
             opt.textContent = `@${d.domain}`;
