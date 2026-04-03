@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TempMail - Disposable Email Generator</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                    <polyline points="22,6 12,13 2,6"/>
+                </svg>
+                <h1>TempMail</h1>
+            </div>
+            <p class="tagline">Disposable Email Generator &amp; Inbox</p>
+        </header>
+
+        <!-- Premium Toggle -->
+        <section class="premium-section">
+            <div class="premium-toggle-row">
+                <div class="premium-label">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                    </svg>
+                    Premium Mode
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="premiumToggle">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <!-- Domain Selector (Premium Only) -->
+            <div class="domain-selector" id="domainSelector" style="display:none;">
+                <label for="domainSelect">Pick a Domain:</label>
+                <select id="domainSelect">
+                    <option value="">Loading domains...</option>
+                </select>
+            </div>
+        </section>
+
+        <!-- Email Generator Section -->
+        <section class="generator">
+            <div class="generator-card">
+                <div class="generator-title-row">
+                    <h2>Your Temporary Email</h2>
+                    <span class="account-counter" id="accountCounter">0 / 5</span>
+                </div>
+                <div class="email-display" id="emailDisplay">
+                    <span class="email-placeholder" id="emailText">Click generate to create a new email</span>
+                    <button class="btn-copy" id="copyBtn" title="Copy to clipboard" style="display:none;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Account Tabs -->
+                <div class="account-tabs" id="accountTabs" style="display:none;"></div>
+
+                <div class="generator-actions">
+                    <button class="btn-primary" id="generateBtn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+                        </svg>
+                        Generate Email
+                    </button>
+                    <button class="btn-secondary" id="refreshBtn" style="display:none;">
+                        <svg class="refresh-icon" id="refreshIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <polyline points="23 4 23 10 17 10"/>
+                            <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+                        </svg>
+                        Refresh Inbox
+                    </button>
+                </div>
+                <div class="auto-refresh-badge" id="autoRefreshBadge" style="display:none;">
+                    <span class="pulse-dot"></span>
+                    Auto-refreshing every 5s
+                </div>
+            </div>
+        </section>
+
+        <!-- Inbox Section -->
+        <section class="inbox-section" id="inboxSection" style="display:none;">
+            <div class="inbox-header">
+                <h2>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+                        <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
+                        <path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/>
+                    </svg>
+                    Inbox
+                </h2>
+                <span class="message-count" id="messageCount">0 messages</span>
+            </div>
+
+            <div class="inbox-list" id="inboxList">
+                <div class="empty-inbox" id="emptyInbox">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+                        <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
+                        <path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/>
+                    </svg>
+                    <p>No emails yet</p>
+                    <span>Send an email to your temporary address and it will appear here</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Email Viewer Modal -->
+        <div class="modal-overlay" id="modalOverlay">
+            <div class="modal" id="emailModal">
+                <div class="modal-header">
+                    <h3 id="modalSubject">Subject</h3>
+                    <button class="modal-close" id="modalClose">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-meta">
+                    <div class="meta-row">
+                        <span class="meta-label">From:</span>
+                        <span id="modalFrom">sender@example.com</span>
+                    </div>
+                    <div class="meta-row">
+                        <span class="meta-label">Date:</span>
+                        <span id="modalDate">Jan 1, 2024</span>
+                    </div>
+                </div>
+                <div class="modal-body" id="modalBody">
+                    Loading...
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notification -->
+        <div class="toast" id="toast">Copied to clipboard!</div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Emails are temporary and will be deleted automatically. Do not use for sensitive information.</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
