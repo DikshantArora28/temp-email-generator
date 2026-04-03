@@ -219,8 +219,17 @@ body {
 }
 
 .phone-flag {
-    font-size: 24px;
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+}
+
+.phone-flag-img {
+    width: 32px;
+    height: 22px;
+    object-fit: cover;
+    border-radius: 3px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
 
 .phone-info {

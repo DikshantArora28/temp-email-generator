@@ -400,32 +400,37 @@ tabPhone.addEventListener('click', () => {
 // ==========================================================
 //  TEMPORARY PHONE NUMBERS — curated from public services
 // ==========================================================
+// Country code -> flag image URL (flagcdn.com is reliable & free)
+function flagImg(code) {
+    return `<img src="https://flagcdn.com/w40/${code.toLowerCase()}.png" alt="${code}" class="phone-flag-img">`;
+}
+
 const TEMP_PHONES = [
     // USA
-    { country: 'US', flag: '\uD83C\uDDFA\uD83C\uDDF8', number: '+1 (380) 260-3245', raw: '13802603245', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/13802603245/' },
-    { country: 'US', flag: '\uD83C\uDDFA\uD83C\uDDF8', number: '+1 (970) 784-0507', raw: '19707840507', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/19707840507/' },
-    { country: 'US', flag: '\uD83C\uDDFA\uD83C\uDDF8', number: '+1 (347) 392-9868', raw: '13473929868', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/13473929868/' },
-    { country: 'US', flag: '\uD83C\uDDFA\uD83C\uDDF8', number: '+1 (281) 216-6971', raw: '12812166971', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/12812166971/' },
-    { country: 'US', flag: '\uD83C\uDDFA\uD83C\uDDF8', number: '+1 (929) 836-4242', raw: '19298364242', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/19298364242/' },
+    { country: 'US', number: '+1 (380) 260-3245', raw: '13802603245', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/13802603245/' },
+    { country: 'US', number: '+1 (970) 784-0507', raw: '19707840507', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/19707840507/' },
+    { country: 'US', number: '+1 (347) 392-9868', raw: '13473929868', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/13473929868/' },
+    { country: 'US', number: '+1 (281) 216-6971', raw: '12812166971', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/12812166971/' },
+    { country: 'US', number: '+1 (929) 836-4242', raw: '19298364242', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/19298364242/' },
     // India
-    { country: 'IN', flag: '\uD83C\uDDEE\uD83C\uDDF3', number: '+91 74287 30894', raw: '917428730894', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/917428730894/' },
-    { country: 'IN', flag: '\uD83C\uDDEE\uD83C\uDDF3', number: '+91 74287 23247', raw: '917428723247', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/917428723247/' },
-    { country: 'IN', flag: '\uD83C\uDDEE\uD83C\uDDF3', number: '+91 Numbers', raw: '', service: 'quackr.io', smsUrl: 'https://quackr.io/temporary-numbers/india' },
+    { country: 'IN', number: '+91 74287 30894', raw: '917428730894', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/917428730894/' },
+    { country: 'IN', number: '+91 74287 23247', raw: '917428723247', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/917428723247/' },
+    { country: 'IN', number: '+91 Numbers', raw: '', service: 'quackr.io', smsUrl: 'https://quackr.io/temporary-numbers/india' },
     // China
-    { country: 'CN', flag: '\uD83C\uDDE8\uD83C\uDDF3', number: '+86 Numbers', raw: '', service: 'quackr.io', smsUrl: 'https://quackr.io/temporary-numbers/china' },
-    { country: 'CN', flag: '\uD83C\uDDE8\uD83C\uDDF3', number: '+86 Numbers', raw: '', service: 'temp-number.com', smsUrl: 'https://temp-number.com/countries/china' },
-    { country: 'CN', flag: '\uD83C\uDDE8\uD83C\uDDF3', number: '+86 Numbers', raw: '', service: 'mytempsms.com', smsUrl: 'https://mytempsms.com/country/china' },
+    { country: 'CN', number: '+86 Numbers', raw: '', service: 'quackr.io', smsUrl: 'https://quackr.io/temporary-numbers/china' },
+    { country: 'CN', number: '+86 Numbers', raw: '', service: 'temp-number.com', smsUrl: 'https://temp-number.com/countries/china' },
+    { country: 'CN', number: '+86 Numbers', raw: '', service: 'mytempsms.com', smsUrl: 'https://mytempsms.com/country/china' },
     // Germany
-    { country: 'DE', flag: '\uD83C\uDDE9\uD83C\uDDEA', number: '+49 1521 094 7617', raw: '4915210947617', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/4915210947617/' },
-    { country: 'DE', flag: '\uD83C\uDDE9\uD83C\uDDEA', number: '+49 1521 109 4215', raw: '4915211094215', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/4915211094215/' },
-    { country: 'DE', flag: '\uD83C\uDDE9\uD83C\uDDEA', number: '+49 1521 089 9596', raw: '4915210899596', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/4915210899596/' },
-    { country: 'DE', flag: '\uD83C\uDDE9\uD83C\uDDEA', number: '+49 Numbers', raw: '', service: 'quackr.io', smsUrl: 'https://quackr.io/temporary-numbers/germany' },
+    { country: 'DE', number: '+49 1521 094 7617', raw: '4915210947617', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/4915210947617/' },
+    { country: 'DE', number: '+49 1521 109 4215', raw: '4915211094215', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/4915211094215/' },
+    { country: 'DE', number: '+49 1521 089 9596', raw: '4915210899596', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/4915210899596/' },
+    { country: 'DE', number: '+49 Numbers', raw: '', service: 'quackr.io', smsUrl: 'https://quackr.io/temporary-numbers/germany' },
     // UK
-    { country: 'GB', flag: '\uD83C\uDDEC\uD83C\uDDE7', number: '+44 7538 299689', raw: '447538299689', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/447538299689/' },
-    { country: 'GB', flag: '\uD83C\uDDEC\uD83C\uDDE7', number: '+44 Numbers', raw: '', service: 'quackr.io', smsUrl: 'https://quackr.io/temporary-numbers/united-kingdom' },
+    { country: 'GB', number: '+44 7538 299689', raw: '447538299689', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/447538299689/' },
+    { country: 'GB', number: '+44 Numbers', raw: '', service: 'quackr.io', smsUrl: 'https://quackr.io/temporary-numbers/united-kingdom' },
     // Canada
-    { country: 'CA', flag: '\uD83C\uDDE8\uD83C\uDDE6', number: '+1 (281) 352-4309', raw: '12813524309', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/12813524309/' },
-    { country: 'CA', flag: '\uD83C\uDDE8\uD83C\uDDE6', number: '+1 Numbers', raw: '', service: 'quackr.io', smsUrl: 'https://quackr.io/temporary-numbers/canada' },
+    { country: 'CA', number: '+1 (281) 352-4309', raw: '12813524309', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/12813524309/' },
+    { country: 'CA', number: '+1 Numbers', raw: '', service: 'quackr.io', smsUrl: 'https://quackr.io/temporary-numbers/canada' },
 ];
 
 let activeCountry = 'all';
@@ -444,7 +449,7 @@ function renderPhoneNumbers() {
         const item = document.createElement('div');
         item.className = 'phone-item';
         item.innerHTML = `
-            <span class="phone-flag">${p.flag}</span>
+            <span class="phone-flag">${flagImg(p.country)}</span>
             <div class="phone-info">
                 <div class="phone-number">${escapeHtml(p.number)}</div>
                 <div class="phone-service">via ${escapeHtml(p.service)}</div>
@@ -478,7 +483,7 @@ function renderPhoneNumbers() {
 // ==========================================================
 //  SMS VIEWER — fetch, parse & render messages inline
 // ==========================================================
-const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+const CORS_PROXY = 'https://corsproxy.io/?';
 const smsViewer = document.getElementById('smsViewer');
 const smsList = document.getElementById('smsList');
 const smsViewerTitle = document.getElementById('smsViewerTitle');
