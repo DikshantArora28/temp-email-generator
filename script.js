@@ -150,18 +150,12 @@ async function mailtm_fetchMessage(base, token, id) {
     return res.json();
 }
 
-// SEND email via Mail.tm / Mail.gw
-async function mailtm_sendMessage(base, token, to, subject, text) {
-    const res = await fetch(`${base}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ to: [{ address: to }], subject, text }),
-    });
-    if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`Send failed (${res.status}): ${err}`);
-    }
-    return res.json();
+// SEND email — opens user's email client via mailto: with fields pre-filled
+function openMailto(fromAddress, to, subject, body) {
+    const params = new URLSearchParams();
+    params.set('subject', subject);
+    params.set('body', body);
+    window.open(`mailto:${encodeURIComponent(to)}?${params.toString()}`, '_blank');
 }
 
 // ==========================================================
@@ -324,7 +318,7 @@ async function createAccount(selection) {
     if (domainInfo.provider === '1secmail') {
         return {
             provider: '1secmail', address,
-            login: username, domain: domainInfo.domain, canSend: false,
+            login: username, domain: domainInfo.domain, canSend: true,
             knownMessageIds: new Set(), messages: [],
         };
     }
@@ -350,12 +344,10 @@ async function fetchMessageForAccount(acc, msgId) {
 // ==========================================================
 //  SEND EMAIL
 // ==========================================================
-async function sendEmail(to, subject, text) {
+function sendEmail(to, subject, text) {
     const acc = accounts[activeIndex];
-    if (!acc || acc.provider !== 'mailtm') {
-        throw new Error('Send is only supported for Mail.tm / Mail.gw accounts');
-    }
-    return mailtm_sendMessage(acc.base, acc.token, to, subject, text);
+    if (!acc) throw new Error('No active account');
+    openMailto(acc.address, to, subject, text);
 }
 
 // ==========================================================
@@ -576,11 +568,7 @@ document.addEventListener('keydown', e => {
 composeBtn.addEventListener('click', () => {
     if (activeIndex < 0) return;
     const acc = accounts[activeIndex];
-    if (!acc.canSend) {
-        showToast('Send is only available for Mail.tm / Mail.gw accounts');
-        return;
-    }
-    composeFrom.textContent = `Sending as: ${acc.address}`;
+    composeFrom.textContent = `From: ${acc.address}`;
     composeTo.value = '';
     composeSubject.value = '';
     composeBody.value = '';
@@ -588,7 +576,7 @@ composeBtn.addEventListener('click', () => {
     composeTo.focus();
 });
 
-composeSendBtn.addEventListener('click', async () => {
+composeSendBtn.addEventListener('click', () => {
     const to      = composeTo.value.trim();
     const subject = composeSubject.value.trim();
     const body    = composeBody.value.trim();
@@ -596,20 +584,9 @@ composeSendBtn.addEventListener('click', async () => {
     if (!to) { showToast('Please enter a recipient email'); composeTo.focus(); return; }
     if (!subject) { showToast('Please enter a subject'); composeSubject.focus(); return; }
 
-    composeSendBtn.disabled = true;
-    composeSendBtn.innerHTML = `<svg class="refresh-icon spinning" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg> Sending...`;
-
-    try {
-        await sendEmail(to, subject, body || '(empty)');
-        closeCompose();
-        showToast('Email sent successfully!');
-    } catch (err) {
-        console.error('Send failed:', err);
-        showToast('Send failed: ' + err.message);
-    } finally {
-        composeSendBtn.disabled = false;
-        composeSendBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Email`;
-    }
+    sendEmail(to, subject, body || '');
+    closeCompose();
+    showToast('Opening your email client...');
 });
 
 // ==========================================================

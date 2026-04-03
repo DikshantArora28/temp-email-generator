@@ -709,7 +709,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 24px;
+    padding: 12px 16px;
     z-index: 1000;
     opacity: 0;
     visibility: hidden;
@@ -840,7 +840,17 @@ body {
 
 /* ===== Compose Modal ===== */
 .compose-modal {
-    max-width: 560px;
+    max-width: 520px;
+    max-height: 96vh;
+    overflow-y: auto;
+}
+
+.compose-modal .modal-header {
+    padding: 14px 20px 10px;
+}
+
+.compose-modal .compose-form textarea {
+    min-height: 50px;
 }
 
 .compose-modal .modal-header h3 {
@@ -854,26 +864,26 @@ body {
 }
 
 .compose-form {
-    padding: 20px 24px 24px;
+    padding: 12px 20px 16px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 8px;
 }
 
 .compose-from {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--success);
     background: var(--success-glow);
     border: 1px solid rgba(0, 210, 160, 0.2);
-    padding: 8px 14px;
-    border-radius: 8px;
+    padding: 6px 12px;
+    border-radius: 6px;
     font-weight: 500;
 }
 
 .compose-field {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
 }
 
 .compose-field label {
@@ -889,7 +899,7 @@ body {
     background: var(--bg-input);
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 10px 14px;
+    padding: 8px 12px;
     color: var(--text-primary);
     font-size: 14px;
     font-family: inherit;
@@ -906,15 +916,6 @@ body {
 .compose-field input::placeholder,
 .compose-field textarea::placeholder {
     color: var(--text-muted);
-}
-
-.compose-note {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11px;
-    color: var(--text-muted);
-    padding: 0 2px;
 }
 
 .compose-actions {
