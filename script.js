@@ -483,7 +483,12 @@ function renderPhoneNumbers() {
 // ==========================================================
 //  SMS VIEWER — fetch, parse & render messages inline
 // ==========================================================
-const CORS_PROXY = 'https://corsproxy.io/?';
+// Multiple CORS proxies with fallback
+const CORS_PROXIES = [
+    'https://api.codetabs.com/v1/proxy?quest=',
+    'https://corsproxy.io/?',
+    'https://api.allorigins.win/raw?url=',
+];
 const smsViewer = document.getElementById('smsViewer');
 const smsList = document.getElementById('smsList');
 const smsViewerTitle = document.getElementById('smsViewerTitle');
@@ -509,15 +514,25 @@ function closeSmsViewer() {
     stopSmsAutoRefresh();
 }
 
+async function fetchViaProxy(url) {
+    const cacheBuster = url.includes('?') ? `&_t=${Date.now()}` : `?_t=${Date.now()}`;
+    const targetUrl = url + cacheBuster;
+    for (const proxy of CORS_PROXIES) {
+        try {
+            const proxyUrl = proxy + encodeURIComponent(targetUrl);
+            const res = await fetch(proxyUrl, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+            if (!res.ok) continue;
+            const text = await res.text();
+            if (text.length > 500 && text.includes('message_details')) return text;
+        } catch { /* try next proxy */ }
+    }
+    throw new Error('All proxies failed');
+}
+
 async function fetchAndRenderSms(url) {
     try {
         smsRefreshIcon.classList.add('spinning');
-        // Add cache-buster to force fresh fetch every time
-        const cacheBuster = url.includes('?') ? `&_t=${Date.now()}` : `?_t=${Date.now()}`;
-        const proxyUrl = CORS_PROXY + encodeURIComponent(url + cacheBuster);
-        const res = await fetch(proxyUrl, { cache: 'no-store' });
-        if (!res.ok) throw new Error(`Fetch failed (${res.status})`);
-        const html = await res.text();
+        const html = await fetchViaProxy(url);
 
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
