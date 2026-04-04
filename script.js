@@ -243,23 +243,33 @@ function renderAccountTabs() {
         accountTabs.appendChild(tab);
     });
 }
+function updateInboxLabel() {
+    const label = document.getElementById('inboxEmailLabel');
+    if (label && activeIndex >= 0 && accounts[activeIndex]) {
+        label.textContent = accounts[activeIndex].address;
+    }
+}
+
 function switchToAccount(idx) {
     if (idx < 0 || idx >= accounts.length) return;
     activeIndex = idx;
     const acc = accounts[idx];
     emailText.textContent = acc.address;
-    emailText.className = 'email-address';
+    emailText.className = 'email-text generated';
     emailDisplay.classList.add('active');
     copyBtn.style.display = 'flex';
+    updateInboxLabel();
     renderAccountTabs();
     renderMessages(acc.messages);
 }
 function removeAccount(idx) {
     accounts.splice(idx, 1); updateAccountCounter();
     if (!accounts.length) {
-        activeIndex = -1; emailText.textContent = 'Click generate to create a new email'; emailText.className = 'email-placeholder';
+        activeIndex = -1; emailText.textContent = 'Click generate to get started'; emailText.className = 'email-text placeholder';
         emailDisplay.classList.remove('active'); copyBtn.style.display = 'none';
-        refreshBtn.style.display = 'none'; autoRefreshBadge.style.display = 'none'; inboxSection.style.display = 'none'; accountTabs.style.display = 'none';
+        refreshBtn.style.display = 'none'; document.getElementById('changeBtn').style.display = 'none';
+        document.getElementById('deleteBtn').style.display = 'none';
+        autoRefreshBadge.style.display = 'none'; inboxSection.style.display = 'none'; accountTabs.style.display = 'none';
         if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
         updateGenerateButton(); renderAccountTabs(); return;
     }
@@ -340,10 +350,11 @@ function startPolling() { if (pollingInterval) clearInterval(pollingInterval); p
 //  GENERATE BUTTON
 // ==========================================================
 function updateGenerateButton() {
+    const emailIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>`;
     const at = accounts.length >= MAX_ACCOUNTS; generateBtn.disabled = at;
-    if (at) generateBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Limit (5/5)`;
-    else if (accounts.length > 0) generateBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Email (${accounts.length}/${MAX_ACCOUNTS})`;
-    else generateBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Generate Email`;
+    if (at) generateBtn.innerHTML = `${emailIcon} Limit Reached`;
+    else if (accounts.length > 0) generateBtn.innerHTML = `${emailIcon} Add Email`;
+    else generateBtn.innerHTML = `${emailIcon} Generate Email`;
 }
 
 // ==========================================================
@@ -367,10 +378,12 @@ generateBtn.addEventListener('click', async () => {
         const sel = isPremium ? domainSelect.value : null;
         const account = await createAccount(sel);
         accounts.push(account); activeIndex = accounts.length - 1;
-        emailText.textContent = account.address; emailText.className = 'email-address';
+        emailText.textContent = account.address; emailText.className = 'email-text generated';
         emailDisplay.classList.add('active'); copyBtn.style.display = 'flex';
-        refreshBtn.style.display = 'inline-flex'; autoRefreshBadge.style.display = 'inline-flex'; inboxSection.style.display = '';
-        renderMessages([]); renderAccountTabs(); updateAccountCounter(); updateGenerateButton();
+        refreshBtn.style.display = ''; document.getElementById('changeBtn').style.display = '';
+        document.getElementById('deleteBtn').style.display = '';
+        autoRefreshBadge.style.display = 'inline-flex'; inboxSection.style.display = '';
+        renderMessages([]); renderAccountTabs(); updateAccountCounter(); updateGenerateButton(); updateInboxLabel();
         startPolling();
         showToast('Email generated successfully!');
     } catch (err) { console.error('Generate failed:', err); showToast('Error: ' + err.message); generateBtn.innerHTML = prev; }
@@ -673,6 +686,64 @@ document.querySelectorAll('.country-btn').forEach(btn => {
         renderPhoneNumbers();
     });
 });
+
+// ==========================================================
+//  CHANGE / DELETE BUTTONS
+// ==========================================================
+document.getElementById('changeBtn').addEventListener('click', async () => {
+    // Replace the current email — remove it first, then generate a new one
+    if (activeIndex >= 0) {
+        accounts.splice(activeIndex, 1);
+        if (activeIndex >= accounts.length) activeIndex = accounts.length - 1;
+    }
+    // Now generate a new one in its place
+    try {
+        const sel = isPremium ? domainSelect.value : null;
+        const account = await createAccount(sel);
+        accounts.push(account);
+        activeIndex = accounts.length - 1;
+        emailText.textContent = account.address;
+        emailText.className = 'email-text generated';
+        emailDisplay.classList.add('active');
+        copyBtn.style.display = 'flex';
+        refreshBtn.style.display = '';
+        document.getElementById('changeBtn').style.display = '';
+        document.getElementById('deleteBtn').style.display = '';
+        autoRefreshBadge.style.display = 'inline-flex';
+        inboxSection.style.display = '';
+        renderMessages([]);
+        renderAccountTabs();
+        updateAccountCounter();
+        updateGenerateButton();
+        updateInboxLabel();
+        startPolling();
+        showToast('Email changed!');
+    } catch (err) {
+        console.error('Change failed:', err);
+        showToast('Error: ' + err.message);
+    }
+});
+
+document.getElementById('deleteBtn').addEventListener('click', () => {
+    if (activeIndex >= 0) removeAccount(activeIndex);
+});
+
+// ==========================================================
+//  THEME TOGGLE (light/dark)
+// ==========================================================
+function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('tempmail-theme', theme);
+}
+
+document.getElementById('themeToggle').onclick = function() {
+    var current = document.documentElement.getAttribute('data-theme') || 'dark';
+    setTheme(current === 'dark' ? 'light' : 'dark');
+};
+
+// Load saved theme
+var savedTheme = localStorage.getItem('tempmail-theme');
+if (savedTheme) setTheme(savedTheme);
 
 // ===== INIT =====
 updateAccountCounter(); updateGenerateButton(); fetchAllDomains();

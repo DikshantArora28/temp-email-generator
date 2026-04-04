@@ -1,25 +1,34 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TempMail - Disposable Email & Phone</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=5">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="app">
         <!-- Header -->
         <header class="header">
-            <div class="logo">
-                <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                    <polyline points="22,6 12,13 2,6"/>
-                </svg>
-                <h1>TempMail</h1>
+            <div class="header-top">
+                <div class="logo">
+                    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                        <polyline points="22,6 12,13 2,6"/>
+                    </svg>
+                    <h1>TEMPMAIL</h1>
+                </div>
+                <button class="theme-toggle" id="themeToggle" title="Toggle light/dark mode">
+                    <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                    <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+                    </svg>
+                </button>
             </div>
-            <p class="tagline">Disposable Email &amp; Temp Phone Numbers</p>
         </header>
 
         <!-- Tab Switcher -->
@@ -29,73 +38,87 @@
                     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                     <polyline points="22,6 12,13 2,6"/>
                 </svg>
-                Email
+                Temp Email
             </button>
             <button class="tab-btn" id="tabPhone" data-tab="phone">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
                     <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
                 </svg>
-                Phone
+                Temp Number
             </button>
         </div>
 
         <!-- ==================== EMAIL TAB ==================== -->
         <div class="tab-content" id="emailTab">
-            <!-- Premium Toggle -->
-            <section class="premium-section">
-                <div class="premium-toggle-row">
-                    <div class="premium-label">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                        </svg>
-                        Premium Mode
+            <!-- Email Hero Card -->
+            <section class="hero-card">
+                <!-- Premium Toggle -->
+                <div class="premium-bar">
+                    <div class="premium-toggle-row">
+                        <div class="premium-label">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                            </svg>
+                            Premium Domains
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="premiumToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
                     </div>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="premiumToggle">
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
-                <div class="domain-selector" id="domainSelector" style="display:none;">
-                    <label for="domainSelect">Pick a Domain:</label>
-                    <div class="domain-select-row">
-                        <select id="domainSelect">
-                            <option value="">Loading domains...</option>
-                        </select>
-                        <span class="domain-count" id="domainCount">0</span>
+                    <div class="domain-selector" id="domainSelector" style="display:none;">
+                        <div class="domain-select-row">
+                            <select id="domainSelect"><option value="">Loading...</option></select>
+                            <span class="domain-count" id="domainCount">0</span>
+                        </div>
                     </div>
                 </div>
-            </section>
 
-            <!-- Email Generator -->
-            <section class="generator">
-                <div class="generator-card">
-                    <div class="generator-title-row">
-                        <h2>Your Temporary Email</h2>
-                        <span class="account-counter" id="accountCounter">0 / 5</span>
-                    </div>
-                    <div class="email-display" id="emailDisplay">
-                        <span class="email-placeholder" id="emailText">Click generate to create a new email</span>
-                        <button class="btn-copy" id="copyBtn" title="Copy to clipboard" style="display:none;">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                <div class="hero-inner">
+                    <h2 class="hero-title">Your Temporary Email Address</h2>
+                    <div class="email-box" id="emailDisplay">
+                        <span class="email-text" id="emailText">Click generate to get started</span>
+                        <button class="email-copy-icon" id="copyBtn" title="Copy to clipboard" style="display:none;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
                                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                                 <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
                             </svg>
                         </button>
                     </div>
+                    <p class="hero-desc">Keep your real mailbox clean and secure. TempMail provides temporary, anonymous, free, disposable email addresses.</p>
+
+                    <!-- Account Tabs -->
                     <div class="account-tabs" id="accountTabs" style="display:none;"></div>
-                    <div class="generator-actions">
-                        <button class="btn-primary" id="generateBtn">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                                <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+
+                    <!-- Action Buttons Row -->
+                    <div class="action-row">
+                        <button class="action-btn action-generate" id="generateBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                                <polyline points="22,6 12,13 2,6"/>
+                                <line x1="12" y1="11" x2="12" y2="17"/>
+                                <line x1="9" y1="14" x2="15" y2="14"/>
                             </svg>
                             Generate Email
                         </button>
-                        <button class="btn-secondary" id="refreshBtn" style="display:none;">
-                            <svg class="refresh-icon" id="refreshIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                        <button class="action-btn" id="refreshBtn" style="display:none;">
+                            <svg class="refresh-icon" id="refreshIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
                                 <polyline points="23 4 23 10 17 10"/>
                                 <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
                             </svg>
                             Refresh
+                        </button>
+                        <button class="action-btn" id="changeBtn" style="display:none;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/>
+                            </svg>
+                            Change
+                        </button>
+                        <button class="action-btn action-danger" id="deleteBtn" style="display:none;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                            Delete
                         </button>
                     </div>
                     <div class="auto-refresh-badge" id="autoRefreshBadge" style="display:none;">
@@ -103,28 +126,34 @@
                         Auto-refreshing every 5s
                     </div>
                 </div>
+
+                <span class="account-counter" id="accountCounter" style="display:none;">0 / 5</span>
             </section>
 
             <!-- Inbox -->
             <section class="inbox-section" id="inboxSection" style="display:none;">
-                <div class="inbox-header">
-                    <h2>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
-                            <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
-                            <path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/>
-                        </svg>
-                        Inbox
-                    </h2>
-                    <span class="message-count" id="messageCount">0 messages</span>
+                <div class="inbox-active-email" id="inboxActiveEmail">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                        <polyline points="22,6 12,13 2,6"/>
+                    </svg>
+                    <span id="inboxEmailLabel">—</span>
                 </div>
-                <div class="inbox-list" id="inboxList">
-                    <div class="empty-inbox" id="emptyInbox">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
-                            <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
-                            <path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/>
-                        </svg>
-                        <p>No emails yet</p>
-                        <span>Send an email to your temporary address and it will appear here</span>
+                <div class="inbox-card">
+                    <div class="inbox-table-header">
+                        <span class="inbox-col-sender">SENDER</span>
+                        <span class="inbox-col-subject">SUBJECT</span>
+                        <span class="inbox-col-time" id="messageCount">TIME</span>
+                    </div>
+                    <div class="inbox-list" id="inboxList">
+                        <div class="empty-inbox" id="emptyInbox">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+                                <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
+                                <path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/>
+                            </svg>
+                            <p>Your inbox is empty</p>
+                            <span>Waiting for incoming emails...</span>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -142,11 +171,9 @@
                             Temporary Phone Numbers
                         </h2>
                     </div>
-                    <p class="phone-subtitle">Use these public numbers to receive SMS verification codes. Click "View SMS" to see received messages.</p>
-
-                    <!-- Country Filter -->
+                    <p class="phone-subtitle">Use these public numbers to receive SMS verification codes.</p>
                     <div class="country-filter">
-                        <button class="country-btn active" data-country="all">&#x1F30D; All</button>
+                        <button class="country-btn active" data-country="all">All</button>
                         <button class="country-btn" data-country="US"><img src="https://flagcdn.com/w20/us.png" class="country-flag-img"> USA</button>
                         <button class="country-btn" data-country="IN"><img src="https://flagcdn.com/w20/in.png" class="country-flag-img"> India</button>
                         <button class="country-btn" data-country="CN"><img src="https://flagcdn.com/w20/cn.png" class="country-flag-img"> China</button>
@@ -154,45 +181,25 @@
                         <button class="country-btn" data-country="GB"><img src="https://flagcdn.com/w20/gb.png" class="country-flag-img"> UK</button>
                         <button class="country-btn" data-country="CA"><img src="https://flagcdn.com/w20/ca.png" class="country-flag-img"> Canada</button>
                     </div>
-
-                    <!-- Phone Numbers Grid -->
                     <div class="phone-grid" id="phoneGrid"></div>
-
-                    <!-- Inline SMS Viewer -->
                     <div class="sms-viewer" id="smsViewer" style="display:none;">
                         <div class="sms-viewer-header">
                             <h3 id="smsViewerTitle">SMS Inbox</h3>
                             <div class="sms-viewer-actions">
-                                <button class="sms-refresh-btn" id="smsRefreshBtn" title="Refresh messages">
-                                    <svg class="refresh-icon" id="smsRefreshIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                                        <polyline points="23 4 23 10 17 10"/>
-                                        <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
-                                    </svg>
-                                </button>
+                                <button class="sms-refresh-btn" id="smsRefreshBtn" title="Refresh"><svg class="refresh-icon" id="smsRefreshIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg></button>
                                 <button class="sms-viewer-close" id="smsViewerClose" title="Close">&times;</button>
                             </div>
                         </div>
                         <div class="sms-auto-refresh" id="smsAutoRefresh">
                             <span class="pulse-dot"></span>
                             Auto-refreshing every <span id="smsCountdown">10</span>s
-                            <button class="sms-manual-refresh" id="smsManualRefresh">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                                    <polyline points="23 4 23 10 17 10"/>
-                                    <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
-                                </svg>
-                                Refresh Now
-                            </button>
+                            <button class="sms-manual-refresh" id="smsManualRefresh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg> Refresh Now</button>
                         </div>
-                        <div class="sms-list" id="smsList">
-                            <div class="sms-loading">Loading messages...</div>
-                        </div>
+                        <div class="sms-list" id="smsList"><div class="sms-loading">Loading messages...</div></div>
                     </div>
-
                     <div class="phone-note">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                            <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-                        </svg>
-                        These are shared public numbers. Messages are visible to everyone. Do not use for sensitive accounts.
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                        These are shared public numbers. Messages are visible to everyone.
                     </div>
                 </div>
             </section>
@@ -200,39 +207,25 @@
 
         <!-- Email Viewer Modal -->
         <div class="modal-overlay" id="modalOverlay">
-            <div class="modal" id="emailModal">
+            <div class="modal">
                 <div class="modal-header">
                     <h3 id="modalSubject">Subject</h3>
-                    <button class="modal-close" id="modalClose">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
-                            <line x1="18" y1="6" x2="6" y2="18"/>
-                            <line x1="6" y1="6" x2="18" y2="18"/>
-                        </svg>
-                    </button>
+                    <button class="modal-close" id="modalClose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                 </div>
                 <div class="modal-meta">
-                    <div class="meta-row">
-                        <span class="meta-label">From:</span>
-                        <span id="modalFrom">sender@example.com</span>
-                    </div>
-                    <div class="meta-row">
-                        <span class="meta-label">Date:</span>
-                        <span id="modalDate">Jan 1, 2024</span>
-                    </div>
+                    <div class="meta-row"><span class="meta-label">From:</span><span id="modalFrom"></span></div>
+                    <div class="meta-row"><span class="meta-label">Date:</span><span id="modalDate"></span></div>
                 </div>
                 <div class="modal-body" id="modalBody">Loading...</div>
             </div>
         </div>
 
-        <!-- Toast -->
-        <div class="toast" id="toast">Copied to clipboard!</div>
+        <div class="toast" id="toast">Copied!</div>
 
-        <!-- Footer -->
         <footer class="footer">
             <p>Emails and phone numbers are temporary. Do not use for sensitive information.</p>
         </footer>
     </div>
-
-    <script src="script.js"></script>
+    <script src="script.js?v=4"></script>
 </body>
 </html>
