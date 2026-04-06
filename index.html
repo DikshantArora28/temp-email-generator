@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YNT Mail - Disposable Email & Phone</title>
-    <link rel="stylesheet" href="style.css?v=17">
+    <link rel="stylesheet" href="style.css?v=22">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
@@ -29,23 +29,41 @@
 
         <!-- Tab Switcher -->
         <div class="tab-switcher">
-            <button class="tab-btn active" id="tabEmail" data-tab="email">
+            <button class="tab-btn active" data-tab="email">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
                     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                     <polyline points="22,6 12,13 2,6"/>
                 </svg>
-                Temp Email
+                <span class="tab-label">Temp Email</span>
             </button>
-            <button class="tab-btn" id="tabPhone" data-tab="phone">
+            <button class="tab-btn" data-tab="phone">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
                     <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
                 </svg>
-                Temp Number
+                <span class="tab-label">Temp Number</span>
+            </button>
+            <button class="tab-btn" data-tab="namegen">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                    <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                </svg>
+                <span class="tab-label">Name Gen</span>
+            </button>
+            <button class="tab-btn" data-tab="password">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+                </svg>
+                <span class="tab-label">Password</span>
+            </button>
+            <button class="tab-btn" data-tab="vcard">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 7h10M7 12h10M7 17h6"/>
+                </svg>
+                <span class="tab-label">vCard QR</span>
             </button>
         </div>
 
         <!-- ==================== EMAIL TAB ==================== -->
-        <div class="tab-content" id="emailTab">
+        <div class="tab-content" id="tab-email">
             <!-- Email Hero Card -->
             <section class="hero-card">
                 <!-- Premium Toggle -->
@@ -73,7 +91,7 @@
                 <div class="hero-inner">
                     <h2 class="hero-title">Your Temporary Email Address</h2>
                     <div class="email-box" id="emailDisplay">
-                        <span class="email-text" id="emailText">Click 👇 generate email to get started</span>
+                        <span class="email-text" id="emailText">Click generate email to get started</span>
                         <button class="email-copy-icon" id="copyBtn" title="Copy to clipboard" style="display:none;">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
                                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
@@ -110,6 +128,12 @@
                             </svg>
                             Change
                         </button>
+                        <button class="action-btn" id="shareBtn" style="display:none;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                            </svg>
+                            Share
+                        </button>
                         <button class="action-btn action-danger" id="deleteBtn" style="display:none;">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
                                 <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -117,9 +141,21 @@
                             Delete
                         </button>
                     </div>
-                    <div class="auto-refresh-badge" id="autoRefreshBadge" style="display:none;">
-                        <span class="pulse-dot"></span>
-                        Auto-refreshing every 5s
+                    <div class="status-row" id="statusRow" style="display:none;">
+                        <div class="auto-refresh-badge" id="autoRefreshBadge">
+                            <span class="pulse-dot"></span>
+                            Auto-refreshing every 5s
+                        </div>
+                        <div class="notif-badge" id="notifBadge">
+                            <button class="notif-bell-btn" id="notifBellBtn" title="Toggle notification sound">
+                                <svg class="bell-icon" id="bellIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                    <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                                    <path d="M13.73 21a2 2 0 01-3.46 0"/>
+                                </svg>
+                                <span class="bell-muted-line" id="bellMutedLine" style="display:none;"></span>
+                                <span class="notif-count" id="notifCount" style="display:none;">0</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -133,7 +169,7 @@
                         <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                         <polyline points="22,6 12,13 2,6"/>
                     </svg>
-                    <span id="inboxEmailLabel">—</span>
+                    <span id="inboxEmailLabel">---</span>
                 </div>
                 <div class="inbox-card">
                     <div class="inbox-table-header">
@@ -156,7 +192,7 @@
         </div>
 
         <!-- ==================== PHONE TAB ==================== -->
-        <div class="tab-content" id="phoneTab" style="display:none;">
+        <div class="tab-content" id="tab-phone" style="display:none;">
             <section class="phone-section">
                 <div class="phone-card">
                     <div class="phone-title-row">
@@ -176,6 +212,10 @@
                         <button class="country-btn" data-country="DE"><img src="https://flagcdn.com/w20/de.png" class="country-flag-img"> Germany</button>
                         <button class="country-btn" data-country="GB"><img src="https://flagcdn.com/w20/gb.png" class="country-flag-img"> UK</button>
                         <button class="country-btn" data-country="CA"><img src="https://flagcdn.com/w20/ca.png" class="country-flag-img"> Canada</button>
+                        <button class="country-btn" data-country="FR"><img src="https://flagcdn.com/w20/fr.png" class="country-flag-img"> France</button>
+                        <button class="country-btn" data-country="AU"><img src="https://flagcdn.com/w20/au.png" class="country-flag-img"> Australia</button>
+                        <button class="country-btn" data-country="BR"><img src="https://flagcdn.com/w20/br.png" class="country-flag-img"> Brazil</button>
+                        <button class="country-btn" data-country="JP"><img src="https://flagcdn.com/w20/jp.png" class="country-flag-img"> Japan</button>
                     </div>
                     <div class="phone-grid" id="phoneGrid"></div>
                     <div class="sms-viewer" id="smsViewer" style="display:none;">
@@ -201,18 +241,196 @@
             </section>
         </div>
 
+        <!-- ==================== NAME GENERATOR TAB ==================== -->
+        <div class="tab-content" id="tab-namegen" style="display:none;">
+            <section class="namegen-section">
+                <div class="namegen-card">
+                    <div class="namegen-title-row">
+                        <h2>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+                                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                            </svg>
+                            Disposable Username Generator
+                        </h2>
+                    </div>
+                    <p class="namegen-subtitle">Generate random realistic names by country and gender.</p>
+
+                    <div class="namegen-controls">
+                        <label class="namegen-label">Country</label>
+                        <div class="namegen-country-grid" id="namegenCountryGrid">
+                            <button class="namegen-country-btn active" data-country="US"><img src="https://flagcdn.com/w20/us.png" class="country-flag-img"> USA</button>
+                            <button class="namegen-country-btn" data-country="GB"><img src="https://flagcdn.com/w20/gb.png" class="country-flag-img"> UK</button>
+                            <button class="namegen-country-btn" data-country="IN"><img src="https://flagcdn.com/w20/in.png" class="country-flag-img"> India</button>
+                            <button class="namegen-country-btn" data-country="DE"><img src="https://flagcdn.com/w20/de.png" class="country-flag-img"> Germany</button>
+                            <button class="namegen-country-btn" data-country="FR"><img src="https://flagcdn.com/w20/fr.png" class="country-flag-img"> France</button>
+                            <button class="namegen-country-btn" data-country="JP"><img src="https://flagcdn.com/w20/jp.png" class="country-flag-img"> Japan</button>
+                            <button class="namegen-country-btn" data-country="BR"><img src="https://flagcdn.com/w20/br.png" class="country-flag-img"> Brazil</button>
+                            <button class="namegen-country-btn" data-country="AU"><img src="https://flagcdn.com/w20/au.png" class="country-flag-img"> Australia</button>
+                            <button class="namegen-country-btn" data-country="CA"><img src="https://flagcdn.com/w20/ca.png" class="country-flag-img"> Canada</button>
+                            <button class="namegen-country-btn" data-country="KR"><img src="https://flagcdn.com/w20/kr.png" class="country-flag-img"> S. Korea</button>
+                        </div>
+
+                        <label class="namegen-label">Gender</label>
+                        <div class="namegen-gender-row">
+                            <button class="namegen-gender-btn active" data-gender="male">Male</button>
+                            <button class="namegen-gender-btn" data-gender="female">Female</button>
+                        </div>
+
+                        <button class="action-btn action-generate namegen-generate-btn" id="namegenGenerateBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                            </svg>
+                            Generate Names
+                        </button>
+                    </div>
+
+                    <div class="namegen-results" id="namegenResults"></div>
+                </div>
+            </section>
+        </div>
+
+        <!-- ==================== PASSWORD TAB ==================== -->
+        <div class="tab-content" id="tab-password" style="display:none;">
+            <section class="password-section">
+                <div class="password-card">
+                    <div class="password-title-row">
+                        <h2>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+                            </svg>
+                            Secure Password Generator
+                        </h2>
+                    </div>
+                    <p class="password-subtitle">Generate cryptographically secure random passwords.</p>
+
+                    <div class="password-controls">
+                        <div class="password-length-row">
+                            <label class="namegen-label">Length: <span id="passwordLengthValue">16</span></label>
+                            <input type="range" id="passwordLengthSlider" min="8" max="64" value="16" class="password-slider">
+                        </div>
+
+                        <div class="password-options">
+                            <label class="password-option"><input type="checkbox" id="pwOptUpper" checked> Uppercase (A-Z)</label>
+                            <label class="password-option"><input type="checkbox" id="pwOptLower" checked> Lowercase (a-z)</label>
+                            <label class="password-option"><input type="checkbox" id="pwOptNumbers" checked> Numbers (0-9)</label>
+                            <label class="password-option"><input type="checkbox" id="pwOptSymbols" checked> Symbols (!@#$...)</label>
+                        </div>
+
+                        <button class="action-btn action-generate password-generate-btn" id="passwordGenerateBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+                            </svg>
+                            Generate Password
+                        </button>
+                    </div>
+
+                    <div class="password-result" id="passwordResult" style="display:none;">
+                        <div class="email-box active">
+                            <span class="email-text generated" id="passwordDisplay" style="font-family:monospace;word-break:break-all;"></span>
+                            <button class="email-copy-icon" id="passwordCopyBtn" title="Copy password">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="password-strength-bar">
+                            <div class="password-strength-fill" id="passwordStrengthFill"></div>
+                        </div>
+                        <div class="password-strength-label" id="passwordStrengthLabel">Strong</div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- ==================== VCARD QR TAB ==================== -->
+        <div class="tab-content" id="tab-vcard" style="display:none;">
+            <section class="vcard-section">
+                <div class="vcard-card">
+                    <div class="vcard-title-row">
+                        <h2>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+                                <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 7h10M7 12h10M7 17h6"/>
+                            </svg>
+                            vCard QR Code Generator
+                        </h2>
+                    </div>
+                    <p class="vcard-subtitle">Create a QR code that saves a contact directly to any phone.</p>
+
+                    <div class="vcard-form">
+                        <div class="vcard-field">
+                            <label>First Name <span class="vcard-required">*</span></label>
+                            <input type="text" id="vcardFirstName" placeholder="John" required>
+                        </div>
+                        <div class="vcard-field">
+                            <label>Last Name</label>
+                            <input type="text" id="vcardLastName" placeholder="Doe">
+                        </div>
+                        <div class="vcard-field">
+                            <label>Company</label>
+                            <input type="text" id="vcardCompany" placeholder="Acme Inc.">
+                        </div>
+                        <div class="vcard-field">
+                            <label>Designation</label>
+                            <input type="text" id="vcardDesignation" placeholder="Software Engineer">
+                        </div>
+                        <div class="vcard-field">
+                            <label>Phone <span class="vcard-required">*</span></label>
+                            <input type="tel" id="vcardPhone" placeholder="+1 234 567 8900" required pattern="[+\d\s\-()]{10,}" title="Enter a valid phone number (minimum 10 digits)">
+                        </div>
+                        <div class="vcard-field">
+                            <label>Email</label>
+                            <input type="email" id="vcardEmail" placeholder="john@example.com">
+                        </div>
+
+                        <button class="action-btn action-generate vcard-generate-btn" id="vcardGenerateBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 7h10M7 12h10M7 17h6"/>
+                            </svg>
+                            Generate vCard QR
+                        </button>
+                    </div>
+
+                    <div class="vcard-result" id="vcardResult" style="display:none;">
+                        <div id="vcardQrCode" class="vcard-qr-display"></div>
+                        <p class="vcard-info-text">Scan this QR code with any phone camera to automatically save this contact</p>
+                        <button class="action-btn vcard-download-btn" id="vcardDownloadBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                            Download QR Image
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </div>
+
         <!-- Email Viewer Modal -->
         <div class="modal-overlay" id="modalOverlay">
             <div class="modal">
                 <div class="modal-header">
                     <h3 id="modalSubject">Subject</h3>
-                    <button class="modal-close" id="modalClose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                    <div class="modal-header-actions">
+                        <button class="modal-export-btn" id="modalExportTxt" title="Export as TXT">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            TXT
+                        </button>
+                        <button class="modal-export-btn" id="modalExportPdf" title="Export as PDF">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            PDF
+                        </button>
+                        <button class="modal-close" id="modalClose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                    </div>
                 </div>
                 <div class="modal-meta">
                     <div class="meta-row"><span class="meta-label">From:</span><span id="modalFrom"></span></div>
                     <div class="meta-row"><span class="meta-label">Date:</span><span id="modalDate"></span></div>
                 </div>
                 <div class="modal-body" id="modalBody">Loading...</div>
+                <div class="modal-attachments" id="modalAttachments" style="display:none;">
+                    <h4 class="attachments-title">Attachments</h4>
+                    <div class="attachments-list" id="attachmentsList"></div>
+                </div>
             </div>
         </div>
 
@@ -222,6 +440,8 @@
             <p>Emails and phone numbers are temporary. Do not use for sensitive information.</p>
         </footer>
     </div>
-    <script src="script.js?v=4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="script.js?v=8"></script>
 </body>
 </html>

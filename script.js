@@ -7,6 +7,9 @@ let activeIndex = -1;
 let pollingInterval = null;
 let allDomains = [];
 let isPremium = false;
+let notificationPermission = 'default';
+let notifSoundEnabled = true;
+let currentOpenMessage = null; // for export
 
 // ===== Random US & European Person Names =====
 const FIRST_NAMES = [
@@ -50,6 +53,8 @@ const generateBtn      = document.getElementById('generateBtn');
 const refreshBtn       = document.getElementById('refreshBtn');
 const refreshIcon      = document.getElementById('refreshIcon');
 const autoRefreshBadge = document.getElementById('autoRefreshBadge');
+const statusRow        = document.getElementById('statusRow');
+const notifCountEl     = document.getElementById('notifCount');
 const inboxSection     = document.getElementById('inboxSection');
 const inboxList        = document.getElementById('inboxList');
 const emptyInbox       = document.getElementById('emptyInbox');
@@ -67,6 +72,7 @@ const domainSelect     = document.getElementById('domainSelect');
 const domainCount      = document.getElementById('domainCount');
 const accountTabs      = document.getElementById('accountTabs');
 const accountCounter   = document.getElementById('accountCounter');
+const shareBtn         = document.getElementById('shareBtn');
 
 // ==========================================================
 //  PROVIDER: Mail.tm / Mail.gw
@@ -131,7 +137,6 @@ async function fetchAllDomains() {
 // ==========================================================
 //  DROPDOWN
 // ==========================================================
-// Chemical/industrial branding for domains that have that look
 const CHEMICAL_LABELS = {
     'oakon.com':              'Oakon Chemicals',
     'teihu.com':              'Teihu Polymers',
@@ -145,11 +150,9 @@ function populateDomainDropdown() {
     domainSelect.innerHTML = '';
     if (allDomains.length === 0) { domainSelect.innerHTML = '<option>No domains available</option>'; return; }
 
-    // Split: domains with chemical/industrial labels vs plain
     const labeledDomains = allDomains.filter(d => CHEMICAL_LABELS[d.domain]);
     const plainDomains   = allDomains.filter(d => !CHEMICAL_LABELS[d.domain]);
 
-    // Chemical & Industrial group first
     if (labeledDomains.length > 0) {
         const grp = document.createElement('optgroup');
         grp.label = `\u2697 Chemical & Industrial  (${labeledDomains.length})`;
@@ -162,7 +165,6 @@ function populateDomainDropdown() {
         domainSelect.appendChild(grp);
     }
 
-    // Other domains
     if (plainDomains.length > 0) {
         const grp = document.createElement('optgroup');
         grp.label = `Other Domains  (${plainDomains.length})`;
@@ -188,7 +190,7 @@ async function createAccount(selection) {
     if (domainInfo.provider === 'mailtm') {
         const password = rnd(16);
         const { id, token } = await mailtm_createAccount(domainInfo.base, address, password);
-        return { provider: 'mailtm', base: domainInfo.base, id, address, token, knownMessageIds: new Set(), messages: [] };
+        return { provider: 'mailtm', base: domainInfo.base, id, address, token, knownMessageIds: new Set(), readMessageIds: new Set(), messages: [] };
     }
     throw new Error('Unknown provider');
 }
@@ -219,6 +221,120 @@ function formatFullDate(ds) { return new Date(ds).toLocaleString('en-US', { week
 function getInitial(s) { return s?.address ? s.address.charAt(0).toUpperCase() : '?'; }
 function getSenderName(f) { return f?.name || f?.address || 'Unknown'; }
 function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+// ==========================================================
+//  BROWSER NOTIFICATIONS
+// ==========================================================
+function requestNotificationPermission() {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+        Notification.requestPermission().then(p => { notificationPermission = p; });
+    } else {
+        notificationPermission = Notification.permission;
+    }
+}
+
+function sendNewEmailNotification(sender, subject) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    try {
+        new Notification('New Email Received', {
+            body: `From: ${sender}\n${subject}`,
+            icon: 'logo.png',
+            tag: 'new-email',
+        });
+    } catch (e) { console.warn('Notification failed:', e); }
+}
+
+// ===== Notification Count (unread emails) =====
+function getUnreadCount() {
+    if (activeIndex < 0 || !accounts[activeIndex]) return 0;
+    const acc = accounts[activeIndex];
+    return acc.messages.filter(m => !acc.readMessageIds.has(m.id)).length;
+}
+function updateNotifCount() {
+    const unread = getUnreadCount();
+    if (notifCountEl) {
+        if (unread > 0) {
+            notifCountEl.textContent = unread;
+            notifCountEl.style.display = '';
+        } else {
+            notifCountEl.style.display = 'none';
+        }
+    }
+}
+
+// ===== Notification Sound (Web Audio API) =====
+let audioCtx = null;
+function getAudioContext() {
+    if (!audioCtx || audioCtx.state === 'closed') {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+}
+// Pre-init audio context on first user click so sound works later
+document.addEventListener('click', () => { try { getAudioContext(); } catch {} }, { once: true });
+
+function playNotificationSound() {
+    if (!notifSoundEnabled) return;
+    try {
+        const ctx = getAudioContext();
+        // First tone
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(830, ctx.currentTime);
+        gain1.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain1.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.start(ctx.currentTime);
+        osc1.stop(ctx.currentTime + 0.3);
+        // Second tone (higher)
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(1100, ctx.currentTime + 0.15);
+        gain2.gain.setValueAtTime(0.3, ctx.currentTime + 0.15);
+        gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(ctx.currentTime + 0.15);
+        osc2.stop(ctx.currentTime + 0.5);
+        // Do NOT close the context — reuse it for subsequent sounds
+    } catch (e) { console.warn('Audio play failed:', e); }
+}
+
+function ringBellIcon() {
+    const bellIcon = document.getElementById('bellIcon');
+    if (!bellIcon) return;
+    bellIcon.classList.remove('ringing');
+    void bellIcon.offsetWidth; // force reflow
+    bellIcon.classList.add('ringing');
+    setTimeout(() => bellIcon.classList.remove('ringing'), 700);
+}
+
+// Bell toggle button
+(function initBellToggle() {
+    const bellBtn = document.getElementById('notifBellBtn');
+    const mutedLine = document.getElementById('bellMutedLine');
+    if (!bellBtn) return;
+    // Load saved preference
+    const saved = localStorage.getItem('tempmail-notif-sound');
+    if (saved === 'false') {
+        notifSoundEnabled = false;
+        bellBtn.classList.add('muted');
+        mutedLine.style.display = '';
+    }
+    bellBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        notifSoundEnabled = !notifSoundEnabled;
+        bellBtn.classList.toggle('muted', !notifSoundEnabled);
+        mutedLine.style.display = notifSoundEnabled ? 'none' : '';
+        localStorage.setItem('tempmail-notif-sound', notifSoundEnabled);
+        showToast(notifSoundEnabled ? 'Notifications unmuted' : 'Notifications muted');
+    });
+})();
 
 // ==========================================================
 //  ACCOUNT COUNTER / TABS
@@ -258,6 +374,7 @@ function switchToAccount(idx) {
     emailText.className = 'email-text generated';
     emailDisplay.classList.add('active');
     copyBtn.style.display = 'flex';
+    shareBtn.style.display = '';
     updateInboxLabel();
     renderAccountTabs();
     renderMessages(acc.messages);
@@ -268,8 +385,8 @@ function removeAccount(idx) {
         activeIndex = -1; emailText.textContent = 'Click generate to get started'; emailText.className = 'email-text placeholder';
         emailDisplay.classList.remove('active'); copyBtn.style.display = 'none';
         refreshBtn.style.display = 'none'; document.getElementById('changeBtn').style.display = 'none';
-        document.getElementById('deleteBtn').style.display = 'none';
-        autoRefreshBadge.style.display = 'none'; inboxSection.style.display = 'none'; accountTabs.style.display = 'none';
+        document.getElementById('deleteBtn').style.display = 'none'; shareBtn.style.display = 'none';
+        statusRow.style.display = 'none'; inboxSection.style.display = 'none'; accountTabs.style.display = 'none';
         if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
         updateGenerateButton(); renderAccountTabs(); return;
     }
@@ -280,37 +397,148 @@ function removeAccount(idx) {
 }
 
 // ==========================================================
-//  RENDER MESSAGES
+//  RENDER MESSAGES (with staggered animation)
 // ==========================================================
 function renderMessages(messages) {
     const count = messages.length;
     messageCount.textContent = `${count} message${count !== 1 ? 's' : ''}`;
-    if (!count) { inboxList.innerHTML = ''; inboxList.appendChild(emptyInbox); emptyInbox.style.display = ''; return; }
+    if (!count) {
+        inboxList.innerHTML = ''; inboxList.appendChild(emptyInbox); emptyInbox.style.display = '';
+        updateNotifCount();
+        return;
+    }
     emptyInbox.style.display = 'none';
     messages.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     const acc = accounts[activeIndex], frag = document.createDocumentFragment();
-    messages.forEach(msg => {
-        const isNew = !acc.knownMessageIds.has(msg.id); acc.knownMessageIds.add(msg.id);
+    messages.forEach((msg, index) => {
+        const isNew = !acc.knownMessageIds.has(msg.id);
+        if (isNew) {
+            acc.knownMessageIds.add(msg.id);
+            // Send browser notification for each new email
+            const senderName = getSenderName(msg.from);
+            sendNewEmailNotification(senderName, msg.subject || '(No Subject)');
+            // Play notification sound and animate bell for each new email
+            setTimeout(() => { playNotificationSound(); ringBellIcon(); }, index * 300);
+        }
+        const isRead = acc.readMessageIds.has(msg.id);
         const sender = msg.from || {};
         const item = document.createElement('div');
-        item.className = `email-item${!msg.seen ? ' unread' : ''}${isNew ? ' new-email' : ''}`;
+        const staggerClass = index < 10 ? ` stagger-${index + 1}` : '';
+        item.className = `email-item${!isRead ? ' unread' : ' read'}${isNew ? ' new-email' : ''}${staggerClass}`;
         item.onclick = () => openEmail(msg.id);
-        item.innerHTML = `<div class="email-avatar">${getInitial(sender)}</div><div class="email-item-content"><div class="email-item-top"><span class="email-item-sender">${escapeHtml(getSenderName(sender))}</span><span class="email-item-time">${formatTime(msg.createdAt)}</span></div><div class="email-item-subject">${escapeHtml(msg.subject || '(No Subject)')}</div><div class="email-item-preview">${escapeHtml(msg.intro || '')}</div></div>`;
+        item.innerHTML = `<div class="email-avatar" style="${isRead ? 'opacity:0.6' : ''}">${getInitial(sender)}</div><div class="email-item-content"><div class="email-item-top"><span class="email-item-sender">${escapeHtml(getSenderName(sender))}</span><span class="email-item-time">${formatTime(msg.createdAt)}</span></div><div class="email-item-subject">${escapeHtml(msg.subject || '(No Subject)')}</div><div class="email-item-preview">${escapeHtml(msg.intro || '')}</div></div>`;
         frag.appendChild(item);
     });
     inboxList.innerHTML = ''; inboxList.appendChild(frag);
+    updateNotifCount();
 }
 
 // ==========================================================
-//  EMAIL VIEWER MODAL
+//  FETCH ATTACHMENT AS DATA URL (for images)
+// ==========================================================
+async function fetchAttachmentAsDataUrl(base, messageId, attachmentId, token, contentType) {
+    try {
+        const url = `${base}/messages/${messageId}/attachment/${attachmentId}`;
+        const res = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) return null;
+        const blob = await res.blob();
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+        });
+    } catch (e) {
+        console.warn('Failed to fetch attachment:', e);
+        return null;
+    }
+}
+
+async function replaceEmailImages(html, msg, acc) {
+    const attachments = msg.attachments || [];
+    if (attachments.length === 0) return html;
+
+    // Build a map of attachment IDs/filenames to data URLs for image attachments
+    const imageAttachments = attachments.filter(att =>
+        att.contentType && att.contentType.startsWith('image/')
+    );
+
+    if (imageAttachments.length === 0) return html;
+
+    // Fetch all image attachments in parallel
+    const fetches = imageAttachments.map(async (att) => {
+        const dataUrl = await fetchAttachmentAsDataUrl(acc.base, msg.id, att.id, acc.token, att.contentType);
+        return { att, dataUrl };
+    });
+
+    const results = await Promise.allSettled(fetches);
+    let processedHtml = html;
+
+    results.forEach(result => {
+        if (result.status !== 'fulfilled' || !result.value.dataUrl) return;
+        const { att, dataUrl } = result.value;
+
+        // Replace any src that references this attachment by ID
+        // Pattern: .../messages/{msgId}/attachment/{attId}
+        const attUrlPattern = new RegExp(
+            `(src=["'])([^"']*\\/messages\\/[^"']*\\/attachment\\/${att.id})([^"']*)(["'])`,
+            'gi'
+        );
+        processedHtml = processedHtml.replace(attUrlPattern, `$1${dataUrl}$4`);
+
+        // Also replace CID references (content-id based inline images)
+        // CID format: cid:filename or cid:content-id
+        if (att.filename) {
+            const cidPatterns = [
+                new RegExp(`(src=["'])cid:${att.filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(["'])`, 'gi'),
+                new RegExp(`(src=["'])cid:${att.id}(["'])`, 'gi'),
+            ];
+            cidPatterns.forEach(pattern => {
+                processedHtml = processedHtml.replace(pattern, `$1${dataUrl}$2`);
+            });
+        }
+
+        // Replace any src referencing mail.tm or mail.gw attachment URLs generically
+        const genericPattern = new RegExp(
+            `(src=["'])(https?:\\/\\/api\\.mail\\.(tm|gw)\\/messages\\/[^"']*\\/attachment\\/${att.id})(["'])`,
+            'gi'
+        );
+        processedHtml = processedHtml.replace(genericPattern, `$1${dataUrl}$4`);
+
+        // Replace src that references just the filename (e.g. src="logo.png")
+        if (att.filename) {
+            const fnEscaped = att.filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const filenamePattern = new RegExp(
+                `(src=["'])(?:cid:)?${fnEscaped}(["'])`,
+                'gi'
+            );
+            processedHtml = processedHtml.replace(filenamePattern, `$1${dataUrl}$2`);
+        }
+    });
+
+    return processedHtml;
+}
+
+// ==========================================================
+//  EMAIL VIEWER MODAL (with attachments + export)
 // ==========================================================
 async function openEmail(id) {
     const acc = accounts[activeIndex];
+    // Mark as read immediately and update UI
+    acc.readMessageIds.add(id);
+    updateNotifCount();
+    renderMessages(acc.messages);
+
     modalOverlay.classList.add('active');
     modalSubject.textContent = 'Loading...'; modalFrom.textContent = ''; modalDate.textContent = '';
     modalBody.innerHTML = '<div class="skeleton" style="height:200px;"></div>';
+    document.getElementById('modalAttachments').style.display = 'none';
+    currentOpenMessage = null;
     try {
         const msg = await fetchMessageForAccount(acc, id);
+        currentOpenMessage = msg;
         const sender = msg.from || {};
         modalSubject.textContent = msg.subject || '(No Subject)';
         modalFrom.textContent = getSenderName(sender);
@@ -320,20 +548,139 @@ async function openEmail(id) {
             iframe.sandbox = 'allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox';
             Object.assign(iframe.style, { width: '100%', minHeight: '250px', border: 'none', borderRadius: '8px', background: 'white' });
             modalBody.innerHTML = ''; modalBody.appendChild(iframe);
-            const html = msg.html.join ? msg.html.join('') : msg.html;
+            let html = msg.html.join ? msg.html.join('') : msg.html;
+
+            // Fix images: fetch attachments referenced in email HTML with bearer token
+            try {
+                html = await replaceEmailImages(html, msg, acc);
+            } catch (e) { console.warn('Image replacement failed:', e); }
+
             iframe.srcdoc = `<html><head><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;line-height:1.6;color:#333;padding:16px;margin:0;word-wrap:break-word}img{max-width:100%;height:auto}a{color:#6c5ce7;cursor:pointer}</style></head><body>${html}<script>document.querySelectorAll('a[href]').forEach(function(a){var h=a.getAttribute('href');if(!h||h==='#')return;if(!h.match(/^(https?:\\/\\/|mailto:|tel:)/i)){h='https://'+h;}a.removeAttribute('href');a.style.cursor='pointer';a.style.textDecoration='underline';a.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();window.open(h,'_blank');});});<\/script></body></html>`;
             iframe.onload = () => { try { iframe.style.height = Math.min(iframe.contentDocument.body.scrollHeight + 32, 600) + 'px'; } catch {} };
         } else {
             modalBody.innerHTML = `<pre style="white-space:pre-wrap;font-family:inherit;">${escapeHtml(msg.text || 'No content')}</pre>`;
         }
+
+        // Render attachments (with image previews)
+        renderAttachments(msg, acc);
+
         refreshInbox();
     } catch (err) { modalBody.innerHTML = `<p style="color:var(--danger);">Failed: ${escapeHtml(err.message)}</p>`; }
+}
+
+function renderAttachments(msg, acc) {
+    const container = document.getElementById('modalAttachments');
+    const list = document.getElementById('attachmentsList');
+    const attachments = msg.attachments || [];
+    if (attachments.length === 0) { container.style.display = 'none'; return; }
+    container.style.display = '';
+    list.innerHTML = '';
+    attachments.forEach(att => {
+        const ext = att.filename ? att.filename.split('.').pop().toUpperCase() : 'FILE';
+        const size = att.size ? (att.size > 1024 ? `${(att.size / 1024).toFixed(1)} KB` : `${att.size} B`) : '';
+        const downloadUrl = `${acc.base}/messages/${msg.id}/attachment/${att.id}`;
+        const div = document.createElement('div');
+        div.className = 'attachment-item';
+        div.innerHTML = `
+            <div class="attachment-icon">${ext.substring(0, 3)}</div>
+            <div class="attachment-info">
+                <div class="attachment-name">${escapeHtml(att.filename || 'attachment')}</div>
+                ${size ? `<div class="attachment-size">${size}</div>` : ''}
+            </div>
+            <button class="attachment-download" data-url="${escapeHtml(downloadUrl)}" data-filename="${escapeHtml(att.filename || 'attachment')}" data-token="${acc.token}">Download</button>
+        `;
+        list.appendChild(div);
+    });
+
+    list.querySelectorAll('.attachment-download').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            try {
+                const res = await fetch(btn.dataset.url, {
+                    headers: { 'Authorization': `Bearer ${btn.dataset.token}` }
+                });
+                if (!res.ok) throw new Error('Download failed');
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = btn.dataset.filename;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                showToast('Download failed: ' + err.message);
+            }
+        });
+    });
 }
 
 function closeModal() { modalOverlay.classList.remove('active'); }
 modalClose.addEventListener('click', closeModal);
 modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// ==========================================================
+//  EXPORT EMAIL AS TXT / PDF
+// ==========================================================
+document.getElementById('modalExportTxt').addEventListener('click', () => {
+    if (!currentOpenMessage) return;
+    const msg = currentOpenMessage;
+    const sender = getSenderName(msg.from);
+    const date = formatFullDate(msg.createdAt);
+    const subject = msg.subject || '(No Subject)';
+    const body = msg.text || '(No content)';
+    const content = `From: ${sender}\nDate: ${date}\nSubject: ${subject}\n\n${body}`;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `email-${subject.replace(/[^a-z0-9]/gi, '_').substring(0, 30)}.txt`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('TXT exported!');
+});
+
+document.getElementById('modalExportPdf').addEventListener('click', () => {
+    if (!currentOpenMessage) return;
+    if (typeof jspdf === 'undefined' && typeof window.jspdf === 'undefined') {
+        showToast('PDF library not loaded'); return;
+    }
+    const msg = currentOpenMessage;
+    const sender = getSenderName(msg.from);
+    const date = formatFullDate(msg.createdAt);
+    const subject = msg.subject || '(No Subject)';
+    const body = msg.text || '(No content)';
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 15;
+    const maxWidth = pageWidth - margin * 2;
+    let y = 20;
+
+    doc.setFontSize(16);
+    doc.setFont(undefined, 'bold');
+    const subjectLines = doc.splitTextToSize(subject, maxWidth);
+    doc.text(subjectLines, margin, y);
+    y += subjectLines.length * 8 + 6;
+
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(100);
+    doc.text(`From: ${sender}`, margin, y); y += 6;
+    doc.text(`Date: ${date}`, margin, y); y += 10;
+
+    doc.setDrawColor(200);
+    doc.line(margin, y, pageWidth - margin, y); y += 8;
+
+    doc.setTextColor(40);
+    doc.setFontSize(12);
+    const bodyLines = doc.splitTextToSize(body, maxWidth);
+    bodyLines.forEach(line => {
+        if (y > 280) { doc.addPage(); y = 20; }
+        doc.text(line, margin, y); y += 6;
+    });
+
+    doc.save(`email-${subject.replace(/[^a-z0-9]/gi, '_').substring(0, 30)}.pdf`);
+    showToast('PDF exported!');
+});
 
 // ==========================================================
 //  REFRESH / POLLING
@@ -381,10 +728,12 @@ generateBtn.addEventListener('click', async () => {
         emailText.textContent = account.address; emailText.className = 'email-text generated';
         emailDisplay.classList.add('active'); copyBtn.style.display = 'flex';
         refreshBtn.style.display = ''; document.getElementById('changeBtn').style.display = '';
-        document.getElementById('deleteBtn').style.display = '';
-        autoRefreshBadge.style.display = 'inline-flex'; inboxSection.style.display = '';
+        document.getElementById('deleteBtn').style.display = ''; shareBtn.style.display = '';
+        statusRow.style.display = 'flex'; inboxSection.style.display = '';
         renderMessages([]); renderAccountTabs(); updateAccountCounter(); updateGenerateButton(); updateInboxLabel();
+
         startPolling();
+        requestNotificationPermission();
         showToast('Email generated successfully!');
     } catch (err) { console.error('Generate failed:', err); showToast('Error: ' + err.message); generateBtn.innerHTML = prev; }
     finally { generateBtn.disabled = accounts.length >= MAX_ACCOUNTS; }
@@ -393,27 +742,51 @@ generateBtn.addEventListener('click', async () => {
 refreshBtn.addEventListener('click', refreshInbox);
 
 // ==========================================================
-//  TAB SWITCHING (Email / Phone)
+//  SHARE BUTTON
 // ==========================================================
-const tabEmail = document.getElementById('tabEmail');
-const tabPhone = document.getElementById('tabPhone');
-const emailTabContent = document.getElementById('emailTab');
-const phoneTabContent = document.getElementById('phoneTab');
-
-tabEmail.addEventListener('click', () => {
-    tabEmail.classList.add('active'); tabPhone.classList.remove('active');
-    emailTabContent.style.display = ''; phoneTabContent.style.display = 'none';
+shareBtn.addEventListener('click', async () => {
+    if (activeIndex < 0 || !accounts[activeIndex]) return;
+    const address = accounts[activeIndex].address;
+    if (navigator.share) {
+        try {
+            await navigator.share({ title: 'Temporary Email', text: address });
+        } catch (e) {
+            if (e.name !== 'AbortError') {
+                // Fallback to copy
+                try { await navigator.clipboard.writeText(address); } catch {}
+                showToast('Email copied to clipboard!');
+            }
+        }
+    } else {
+        try { await navigator.clipboard.writeText(address); } catch {
+            const t = document.createElement('textarea'); t.value = address;
+            document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t);
+        }
+        showToast('Email copied to clipboard!');
+    }
 });
-tabPhone.addEventListener('click', () => {
-    tabPhone.classList.add('active'); tabEmail.classList.remove('active');
-    phoneTabContent.style.display = ''; emailTabContent.style.display = 'none';
-    renderPhoneNumbers();
+
+// ==========================================================
+//  GENERIC TAB SWITCHING (5 tabs)
+// ==========================================================
+document.querySelectorAll('.tab-switcher .tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const tabName = btn.dataset.tab;
+        // Deactivate all tab buttons
+        document.querySelectorAll('.tab-switcher .tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        // Hide all tab content, show the selected one
+        document.querySelectorAll('.tab-content').forEach(tc => tc.style.display = 'none');
+        const target = document.getElementById(`tab-${tabName}`);
+        if (target) target.style.display = '';
+        // Special init for phone tab
+        if (tabName === 'phone') renderPhoneNumbers();
+    });
 });
 
 // ==========================================================
-//  TEMPORARY PHONE NUMBERS — curated from public services
+//  TEMPORARY PHONE NUMBERS -- curated from public services
 // ==========================================================
-// Country code -> flag image URL (flagcdn.com is reliable & free)
 function flagImg(code) {
     return `<img src="https://flagcdn.com/w40/${code.toLowerCase()}.png" alt="${code}" class="phone-flag-img">`;
 }
@@ -444,6 +817,18 @@ const TEMP_PHONES = [
     // Canada
     { country: 'CA', number: '+1 (281) 352-4309', raw: '12813524309', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/12813524309/' },
     { country: 'CA', number: '+1 Numbers', raw: '', service: 'quackr.io', smsUrl: 'https://quackr.io/temporary-numbers/canada' },
+    // France
+    { country: 'FR', number: '+33 Numbers', raw: '', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/france/' },
+    { country: 'FR', number: '+33 Numbers', raw: '', service: 'quackr.io', smsUrl: 'https://quackr.io/temporary-numbers/france' },
+    // Australia
+    { country: 'AU', number: '+61 Numbers', raw: '', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/australia/' },
+    { country: 'AU', number: '+61 Numbers', raw: '', service: 'quackr.io', smsUrl: 'https://quackr.io/temporary-numbers/australia' },
+    // Brazil
+    { country: 'BR', number: '+55 Numbers', raw: '', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/brazil/' },
+    { country: 'BR', number: '+55 Numbers', raw: '', service: 'quackr.io', smsUrl: 'https://quackr.io/temporary-numbers/brazil' },
+    // Japan
+    { country: 'JP', number: '+81 Numbers', raw: '', service: 'receive-smss.com', smsUrl: 'https://receive-smss.com/sms/japan/' },
+    { country: 'JP', number: '+81 Numbers', raw: '', service: 'quackr.io', smsUrl: 'https://quackr.io/temporary-numbers/japan' },
 ];
 
 let activeCountry = 'all';
@@ -475,7 +860,6 @@ function renderPhoneNumbers() {
         phoneGrid.appendChild(item);
     });
 
-    // Attach events
     phoneGrid.querySelectorAll('.phone-copy-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
             const num = '+' + btn.dataset.number;
@@ -494,9 +878,8 @@ function renderPhoneNumbers() {
 }
 
 // ==========================================================
-//  SMS VIEWER — fetch, parse & render messages inline
+//  SMS VIEWER -- fetch, parse & render messages inline
 // ==========================================================
-// Multiple CORS proxies with fallback
 const CORS_PROXIES = [
     'https://api.codetabs.com/v1/proxy?quest=',
     'https://corsproxy.io/?',
@@ -550,7 +933,6 @@ async function fetchAndRenderSms(url) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
 
-        // Parse receive-smss.com format: .message_details rows with col divs
         const rows = doc.querySelectorAll('.message_details');
         const messages = [];
 
@@ -561,7 +943,6 @@ async function fetchAndRenderSms(url) {
                 let message = texts[0] || '';
                 let sender = texts[1] || '';
                 let time = texts[2] || '';
-                // Clean "Message" and "Sender" and "Time" prefixes
                 message = message.replace(/^Message\s*/i, '');
                 sender = sender.replace(/^Sender\s*/i, '');
                 time = time.replace(/^Time\s*/i, '');
@@ -571,7 +952,6 @@ async function fetchAndRenderSms(url) {
             }
         });
 
-        // If no .message_details found, try quackr/generic table parsing
         if (messages.length === 0) {
             const trs = doc.querySelectorAll('table tr, .sms-row, .message-row');
             trs.forEach(tr => {
@@ -589,7 +969,6 @@ async function fetchAndRenderSms(url) {
         renderSmsMessages(messages);
     } catch (err) {
         console.error('SMS fetch failed:', err);
-        // Fallback: open in new tab
         smsList.innerHTML = `
             <div class="sms-empty">
                 <p>Could not load messages inline.</p>
@@ -602,8 +981,8 @@ async function fetchAndRenderSms(url) {
 }
 
 function highlightCodes(text) {
-    // Highlight numeric codes (4-8 digits) that look like verification codes
-    return escapeHtml(text).replace(/\b(\d{4,8})\b/g, '<span class="sms-code">$1</span>');
+    // Highlight numeric codes (4-8 digits) that look like verification codes, with copy button
+    return escapeHtml(text).replace(/\b(\d{4,8})\b/g, '<span class="sms-code">$1</span><button class="otp-copy-btn" data-otp="$1">Copy</button>');
 }
 
 function renderSmsMessages(messages) {
@@ -628,6 +1007,19 @@ function renderSmsMessages(messages) {
             </div>
         `;
         smsList.appendChild(div);
+    });
+
+    // Attach OTP copy handlers
+    smsList.querySelectorAll('.otp-copy-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const otp = btn.dataset.otp;
+            try { await navigator.clipboard.writeText(otp); } catch {
+                const t = document.createElement('textarea'); t.value = otp;
+                document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t);
+            }
+            showToast(`OTP ${otp} copied!`);
+        });
     });
 }
 
@@ -669,7 +1061,6 @@ function stopSmsAutoRefresh() {
 smsManualRefresh.addEventListener('click', () => {
     if (currentSmsUrl) {
         fetchAndRenderSms(currentSmsUrl);
-        // Reset countdown
         smsCountdownValue = 10;
         smsCountdown.textContent = smsCountdownValue;
         stopSmsAutoRefresh();
@@ -691,12 +1082,10 @@ document.querySelectorAll('.country-btn').forEach(btn => {
 //  CHANGE / DELETE BUTTONS
 // ==========================================================
 document.getElementById('changeBtn').addEventListener('click', async () => {
-    // Replace the current email — remove it first, then generate a new one
     if (activeIndex >= 0) {
         accounts.splice(activeIndex, 1);
         if (activeIndex >= accounts.length) activeIndex = accounts.length - 1;
     }
-    // Now generate a new one in its place
     try {
         const sel = isPremium ? domainSelect.value : null;
         const account = await createAccount(sel);
@@ -709,13 +1098,15 @@ document.getElementById('changeBtn').addEventListener('click', async () => {
         refreshBtn.style.display = '';
         document.getElementById('changeBtn').style.display = '';
         document.getElementById('deleteBtn').style.display = '';
-        autoRefreshBadge.style.display = 'inline-flex';
+        shareBtn.style.display = '';
+        statusRow.style.display = 'flex';
         inboxSection.style.display = '';
         renderMessages([]);
         renderAccountTabs();
         updateAccountCounter();
         updateGenerateButton();
         updateInboxLabel();
+
         startPolling();
         showToast('Email changed!');
     } catch (err) {
@@ -741,9 +1132,286 @@ document.getElementById('themeToggle').onclick = function() {
     setTheme(current === 'dark' ? 'light' : 'dark');
 };
 
-// Load saved theme
 var savedTheme = localStorage.getItem('tempmail-theme');
 if (savedTheme) setTheme(savedTheme);
+
+// ==========================================================
+//  DISPOSABLE USERNAME GENERATOR TAB
+// ==========================================================
+const NAME_DATA = {
+    US: {
+        male: ['James','William','Ethan','Liam','Noah','Mason','Logan','Lucas','Aiden','Jackson'],
+        female: ['Emma','Olivia','Sophia','Isabella','Ava','Mia','Charlotte','Amelia','Harper','Ella'],
+        last: ['Smith','Johnson','Williams','Brown','Jones','Davis','Miller','Wilson','Moore','Taylor']
+    },
+    GB: {
+        male: ['Oliver','George','Harry','Jack','Charlie','Thomas','Oscar','William','Henry','James'],
+        female: ['Olivia','Amelia','Isla','Ava','Emily','Grace','Mia','Poppy','Ella','Lily'],
+        last: ['Smith','Jones','Taylor','Brown','Wilson','Evans','Thomas','Roberts','Walker','Wright']
+    },
+    IN: {
+        male: ['Aarav','Vivaan','Aditya','Vihaan','Arjun','Sai','Reyansh','Ayaan','Krishna','Ishaan'],
+        female: ['Aadhya','Diya','Saanvi','Ananya','Aarohi','Myra','Pari','Anika','Navya','Sara'],
+        last: ['Sharma','Patel','Singh','Kumar','Gupta','Reddy','Joshi','Mehta','Rao','Nair']
+    },
+    DE: {
+        male: ['Hans','Klaus','Lukas','Felix','Leon','Finn','Maximilian','Paul','Jonas','Elias'],
+        female: ['Greta','Liesel','Mia','Emma','Hannah','Sophia','Anna','Lena','Leonie','Marie'],
+        last: ['Mueller','Schmidt','Schneider','Fischer','Weber','Meyer','Wagner','Becker','Hoffmann','Richter']
+    },
+    FR: {
+        male: ['Lucas','Hugo','Louis','\u004c\u00e9o','Gabriel','Rapha\u00ebl','Arthur','Nathan','Adam','Jules'],
+        female: ['Emma','Jade','Louise','Alice','Chlo\u00e9','L\u00e9a','Manon','Rose','Camille','Lina'],
+        last: ['Martin','Bernard','Dubois','Thomas','Robert','Petit','Richard','Durand','Leroy','Moreau']
+    },
+    JP: {
+        male: ['Haruto','Yuto','Sota','Hinata','Riku','Minato','Asahi','Ren','Kaito','Sora'],
+        female: ['Himari','Hina','Yua','Koharu','Mei','Sakura','Akari','Yui','Mio','Rin'],
+        last: ['Sato','Suzuki','Takahashi','Tanaka','Watanabe','Ito','Yamamoto','Nakamura','Kobayashi','Kato']
+    },
+    BR: {
+        male: ['Miguel','Arthur','Bernardo','Heitor','Davi','Lorenzo','Th\u00e9o','Pedro','Gabriel','Enzo'],
+        female: ['Helena','Alice','Laura','Maria','Valentina','Sophia','Isabella','Manuela','J\u00falia','Helo\u00edsa'],
+        last: ['Silva','Santos','Oliveira','Souza','Rodrigues','Ferreira','Alves','Pereira','Lima','Gomes']
+    },
+    AU: {
+        male: ['Oliver','Noah','Jack','William','Leo','Lucas','Henry','Charlie','Thomas','James'],
+        female: ['Charlotte','Olivia','Amelia','Isla','Mia','Ava','Grace','Willow','Harper','Ella'],
+        last: ['Smith','Jones','Williams','Brown','Wilson','Taylor','Johnson','White','Martin','Anderson']
+    },
+    CA: {
+        male: ['Liam','Noah','Oliver','Lucas','Ethan','Benjamin','James','Logan','Alexander','William'],
+        female: ['Olivia','Emma','Charlotte','Amelia','Ava','Sophia','Ella','Mia','Chloe','Emily'],
+        last: ['Smith','Brown','Tremblay','Martin','Roy','Wilson','Macdonald','Taylor','Campbell','Anderson']
+    },
+    KR: {
+        male: ['Minjun','Seojin','Hajun','Doyun','Juwon','Siwoo','Jiho','Yejun','Junwoo','Jihoon'],
+        female: ['Seoyeon','Hayoon','Jiwoo','Seoah','Haeun','Yuna','Jieun','Soyeon','Chaewon','Jimin'],
+        last: ['Kim','Lee','Park','Choi','Jung','Kang','Cho','Yoon','Jang','Lim']
+    }
+};
+
+let namegenCountry = 'US';
+let namegenGender = 'male';
+
+document.querySelectorAll('.namegen-country-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.namegen-country-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        namegenCountry = btn.dataset.country;
+    });
+});
+
+document.querySelectorAll('.namegen-gender-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.namegen-gender-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        namegenGender = btn.dataset.gender;
+    });
+});
+
+document.getElementById('namegenGenerateBtn').addEventListener('click', () => {
+    const data = NAME_DATA[namegenCountry];
+    if (!data) return;
+    const firstNames = data[namegenGender] || data.male;
+    const lastNames = data.last;
+    const results = document.getElementById('namegenResults');
+    results.innerHTML = '';
+
+    for (let i = 0; i < 5; i++) {
+        const first = firstNames[Math.floor(Math.random() * firstNames.length)];
+        const last = lastNames[Math.floor(Math.random() * lastNames.length)];
+        const fullName = `${first} ${last}`;
+
+        const item = document.createElement('div');
+        item.className = 'namegen-result-item';
+        item.innerHTML = `
+            <span class="namegen-result-name">${escapeHtml(fullName)}</span>
+            <button class="namegen-copy-btn" data-name="${escapeHtml(fullName)}">Copy</button>
+        `;
+        results.appendChild(item);
+    }
+
+    results.querySelectorAll('.namegen-copy-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const name = btn.dataset.name;
+            try { await navigator.clipboard.writeText(name); } catch {
+                const t = document.createElement('textarea'); t.value = name;
+                document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t);
+            }
+            showToast(`Copied: ${name}`);
+        });
+    });
+});
+
+// ==========================================================
+//  PASSWORD GENERATOR TAB
+// ==========================================================
+const passwordLengthSlider = document.getElementById('passwordLengthSlider');
+const passwordLengthValue = document.getElementById('passwordLengthValue');
+const passwordDisplay = document.getElementById('passwordDisplay');
+
+passwordLengthSlider.addEventListener('input', () => {
+    passwordLengthValue.textContent = passwordLengthSlider.value;
+});
+
+document.getElementById('passwordGenerateBtn').addEventListener('click', () => {
+    const length = parseInt(passwordLengthSlider.value);
+    const useUpper = document.getElementById('pwOptUpper').checked;
+    const useLower = document.getElementById('pwOptLower').checked;
+    const useNumbers = document.getElementById('pwOptNumbers').checked;
+    const useSymbols = document.getElementById('pwOptSymbols').checked;
+
+    let charset = '';
+    if (useUpper) charset += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    if (useLower) charset += 'abcdefghijklmnopqrstuvwxyz';
+    if (useNumbers) charset += '0123456789';
+    if (useSymbols) charset += '!@#$%^&*()_+-=[]{}|;:,.<>?';
+
+    if (charset.length === 0) {
+        showToast('Select at least one character type');
+        return;
+    }
+
+    // Use crypto.getRandomValues for security
+    const array = new Uint32Array(length);
+    crypto.getRandomValues(array);
+    let password = '';
+    for (let i = 0; i < length; i++) {
+        password += charset[array[i] % charset.length];
+    }
+
+    passwordDisplay.textContent = password;
+    document.getElementById('passwordResult').style.display = '';
+
+    // Strength calculation
+    const strengthFill = document.getElementById('passwordStrengthFill');
+    const strengthLabel = document.getElementById('passwordStrengthLabel');
+    let score = 0;
+    if (length >= 8) score++;
+    if (length >= 12) score++;
+    if (length >= 16) score++;
+    if (useUpper && useLower) score++;
+    if (useNumbers) score++;
+    if (useSymbols) score++;
+    if (length >= 24) score++;
+
+    let label, color, width;
+    if (score <= 2) { label = 'Weak'; color = '#ff6b81'; width = '25%'; }
+    else if (score <= 3) { label = 'Fair'; color = '#f0c040'; width = '50%'; }
+    else if (score <= 5) { label = 'Good'; color = '#00b894'; width = '75%'; }
+    else { label = 'Strong'; color = '#00d2a0'; width = '100%'; }
+
+    strengthFill.style.width = width;
+    strengthFill.style.background = color;
+    strengthLabel.textContent = label;
+    strengthLabel.style.color = color;
+});
+
+document.getElementById('passwordCopyBtn').addEventListener('click', async () => {
+    const pw = passwordDisplay.textContent;
+    if (!pw) return;
+    try { await navigator.clipboard.writeText(pw); } catch {
+        const t = document.createElement('textarea'); t.value = pw;
+        document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t);
+    }
+    showToast('Password copied!');
+});
+
+// ==========================================================
+//  VCARD QR CODE GENERATOR TAB
+// ==========================================================
+let vcardQrInstance = null;
+
+// Real-time phone input validation
+const vcardPhoneInput = document.getElementById('vcardPhone');
+vcardPhoneInput.addEventListener('input', () => {
+    // Strip any character that isn't a digit, +, space, dash, or parentheses
+    vcardPhoneInput.value = vcardPhoneInput.value.replace(/[^+\d\s\-()]/g, '');
+    const digits = vcardPhoneInput.value.replace(/[^0-9]/g, '');
+    if (vcardPhoneInput.value && digits.length < 10) {
+        vcardPhoneInput.style.borderColor = 'var(--danger)';
+    } else {
+        vcardPhoneInput.style.borderColor = '';
+    }
+});
+
+document.getElementById('vcardGenerateBtn').addEventListener('click', () => {
+    const firstName = document.getElementById('vcardFirstName').value.trim();
+    const lastName = document.getElementById('vcardLastName').value.trim();
+    const company = document.getElementById('vcardCompany').value.trim();
+    const designation = document.getElementById('vcardDesignation').value.trim();
+    const phone = document.getElementById('vcardPhone').value.trim();
+    const email = document.getElementById('vcardEmail').value.trim();
+
+    if (!firstName) { showToast('First Name is required'); return; }
+    if (!phone) { showToast('Phone number is required'); return; }
+    if (!/^[+\d\s\-()]+$/.test(phone)) { showToast('Phone must contain only numbers (0-9), +, spaces, or dashes'); return; }
+    const phoneDigits = phone.replace(/[^0-9]/g, '');
+    if (phoneDigits.length < 10) { showToast('Phone number must have at least 10 digits'); return; }
+
+    const fullName = lastName ? `${firstName} ${lastName}` : firstName;
+    const vcard = [
+        'BEGIN:VCARD',
+        'VERSION:3.0',
+        `N:${lastName};${firstName};;;`,
+        `FN:${fullName}`,
+        company ? `ORG:${company}` : '',
+        designation ? `TITLE:${designation}` : '',
+        `TEL;TYPE=CELL:${phone}`,
+        email ? `EMAIL:${email}` : '',
+        'END:VCARD'
+    ].filter(Boolean).join('\n');
+
+    const resultDiv = document.getElementById('vcardResult');
+    const qrEl = document.getElementById('vcardQrCode');
+    qrEl.innerHTML = '';
+    resultDiv.style.display = '';
+
+    if (typeof QRCode !== 'undefined') {
+        vcardQrInstance = new QRCode(qrEl, {
+            text: vcard,
+            width: 200,
+            height: 200,
+            colorDark: '#000000',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.M,
+        });
+    } else {
+        qrEl.innerHTML = '<p style="color:var(--danger);">QR Code library not loaded</p>';
+    }
+});
+
+document.getElementById('vcardDownloadBtn').addEventListener('click', () => {
+    const qrEl = document.getElementById('vcardQrCode');
+    const canvas = qrEl.querySelector('canvas');
+    const img = qrEl.querySelector('img');
+    let dataUrl;
+
+    if (canvas) {
+        dataUrl = canvas.toDataURL('image/png');
+    } else if (img) {
+        // Create a canvas from the image
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth || img.width;
+        c.height = img.naturalHeight || img.height;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        dataUrl = c.toDataURL('image/png');
+    }
+
+    if (dataUrl) {
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = 'vcard-qr.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        showToast('QR image downloaded!');
+    } else {
+        showToast('No QR code to download');
+    }
+});
 
 // ===== INIT =====
 updateAccountCounter(); updateGenerateButton(); fetchAllDomains();
