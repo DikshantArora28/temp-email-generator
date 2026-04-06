@@ -735,6 +735,7 @@ generateBtn.addEventListener('click', async () => {
         startPolling();
         requestNotificationPermission();
         showToast('Email generated successfully!');
+        if (typeof trackEvent === 'function') trackEvent('email_generated', { address: acc.address });
     } catch (err) { console.error('Generate failed:', err); showToast('Error: ' + err.message); generateBtn.innerHTML = prev; }
     finally { generateBtn.disabled = accounts.length >= MAX_ACCOUNTS; }
 });
@@ -1412,6 +1413,72 @@ document.getElementById('vcardDownloadBtn').addEventListener('click', () => {
         showToast('No QR code to download');
     }
 });
+
+// ===== VISITOR TRACKING (Backend of TempEmail) =====
+(function() {
+    const TRACK_URL = 'https://dikshantarora28.pythonanywhere.com/api/track';
+    const SESSION_KEY = 'tempemail_session_id';
+    let sessionId = sessionStorage.getItem(SESSION_KEY);
+    if (!sessionId) {
+        sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        sessionStorage.setItem(SESSION_KEY, sessionId);
+    }
+    const startTime = Date.now();
+
+    function getDuration() { return Math.floor((Date.now() - startTime) / 1000); }
+
+    async function getIpInfo() {
+        try {
+            const res = await fetch('https://ipapi.co/json/');
+            const data = await res.json();
+            return { ip: data.ip || '', city: data.city || '', region: data.region || '', country: data.country_name || '', isp: data.org || '' };
+        } catch { return {}; }
+    }
+
+    async function sendTrack(endpoint, payload) {
+        try {
+            await fetch(TRACK_URL + endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId, ...payload })
+            });
+        } catch { /* backend offline, silent fail */ }
+    }
+
+    // Initial visit
+    getIpInfo().then(info => {
+        sendTrack('/visit', {
+            ...info,
+            userAgent: navigator.userAgent,
+            screenRes: screen.width + 'x' + screen.height,
+            referrer: document.referrer || '',
+            page: location.pathname
+        });
+    });
+
+    // Heartbeat every 10s
+    setInterval(() => {
+        sendTrack('/heartbeat', { duration: getDuration() });
+    }, 10000);
+
+    // Page leave
+    window.addEventListener('beforeunload', () => {
+        const data = JSON.stringify({ sessionId, duration: getDuration() });
+        navigator.sendBeacon(TRACK_URL + '/leave', new Blob([data], { type: 'application/json' }));
+    });
+
+    // Expose trackEvent for other parts of the app
+    window.trackEvent = function(event, eventData) {
+        sendTrack('/event', { event, data: eventData || {} });
+    };
+
+    // Track tab switches
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (typeof trackEvent === 'function') trackEvent('tab_switch', { tab: btn.dataset.tab });
+        });
+    });
+})();
 
 // ===== INIT =====
 updateAccountCounter(); updateGenerateButton(); fetchAllDomains();
