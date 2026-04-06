@@ -1418,6 +1418,8 @@ document.getElementById('vcardDownloadBtn').addEventListener('click', () => {
 (function() {
     const TRACK_URL = 'https://dikshantarora28.pythonanywhere.com/api/track';
     const SESSION_KEY = 'tempemail_session_id';
+    const FP_KEY = 'tempemail_fingerprint';
+
     let sessionId = sessionStorage.getItem(SESSION_KEY);
     if (!sessionId) {
         sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -1426,6 +1428,24 @@ document.getElementById('vcardDownloadBtn').addEventListener('click', () => {
     const startTime = Date.now();
 
     function getDuration() { return Math.floor((Date.now() - startTime) / 1000); }
+
+    // Browser fingerprint for returning visitor detection
+    function getFingerprint() {
+        let fp = localStorage.getItem(FP_KEY);
+        if (fp) return fp;
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.textBaseline = 'top';
+        ctx.font = '14px Arial';
+        ctx.fillText('TempEmail FP', 2, 2);
+        const canvasData = canvas.toDataURL();
+        const raw = navigator.userAgent + screen.width + 'x' + screen.height + screen.colorDepth + new Date().getTimezoneOffset() + navigator.language + canvasData;
+        let hash = 0;
+        for (let i = 0; i < raw.length; i++) { hash = ((hash << 5) - hash) + raw.charCodeAt(i); hash |= 0; }
+        fp = 'fp_' + Math.abs(hash).toString(36);
+        localStorage.setItem(FP_KEY, fp);
+        return fp;
+    }
 
     async function getIpInfo() {
         try {
@@ -1445,10 +1465,12 @@ document.getElementById('vcardDownloadBtn').addEventListener('click', () => {
         } catch { /* backend offline, silent fail */ }
     }
 
-    // Initial visit
+    // Initial visit with fingerprint
+    const fingerprint = getFingerprint();
     getIpInfo().then(info => {
         sendTrack('/visit', {
             ...info,
+            fingerprint,
             userAgent: navigator.userAgent,
             screenRes: screen.width + 'x' + screen.height,
             referrer: document.referrer || '',
@@ -1477,6 +1499,24 @@ document.getElementById('vcardDownloadBtn').addEventListener('click', () => {
         btn.addEventListener('click', () => {
             if (typeof trackEvent === 'function') trackEvent('tab_switch', { tab: btn.dataset.tab });
         });
+    });
+
+    // Click heatmap tracking — track all button clicks
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('button, .tab-btn, .generate-btn, a');
+        if (!btn) return;
+        const text = btn.textContent?.trim().slice(0, 50) || '';
+        const tag = btn.tagName.toLowerCase();
+        const cls = btn.className?.split(' ')[0] || '';
+        sendTrack('/click', { element: tag + '.' + cls, text, page: location.pathname });
+    });
+
+    // JavaScript error tracking
+    window.addEventListener('error', (e) => {
+        sendTrack('/error', { message: e.message || '', source: e.filename || '', line: e.lineno || 0, col: e.colno || 0 });
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+        sendTrack('/error', { message: 'Unhandled Promise: ' + (e.reason?.message || String(e.reason) || ''), source: 'promise', line: 0, col: 0 });
     });
 })();
 
