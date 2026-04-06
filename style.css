@@ -5,6 +5,25 @@
 :root{
     --radius:    14px;
     --radius-sm: 10px;
+    --bg:        #1a1a2e;
+    --bg-card:   #16213e;
+    --bg-input:  #0f1629;
+    --bg-hover:  #1f2b47;
+    --border:    #2a3a5c;
+    --border-lt: #3a4f7a;
+    --text:      #e8ecf4;
+    --text-2:    #94a3c0;
+    --text-3:    #5a6a8a;
+    --accent:    #00d2a0;
+    --accent-h:  #00e6b0;
+    --accent-bg: rgba(0,210,160,0.1);
+    --purple:    #6c5ce7;
+    --purple-bg: rgba(108,92,231,0.12);
+    --danger:    #ff6b81;
+    --gold:      #f0c040;
+    --gold-bg:   rgba(240,192,64,0.1);
+    --shadow:    0 4px 24px rgba(0,0,0,0.3);
+    --shadow-lg: 0 8px 40px rgba(0,0,0,0.4);
 }
 [data-theme="dark"]{
     --bg:        #1a1a2e;

@@ -1133,8 +1133,8 @@ document.getElementById('themeToggle').onclick = function() {
     setTheme(current === 'dark' ? 'light' : 'dark');
 };
 
-var savedTheme = localStorage.getItem('tempmail-theme');
-if (savedTheme) setTheme(savedTheme);
+var savedTheme = localStorage.getItem('tempmail-theme') || 'dark';
+setTheme(savedTheme);
 
 // ==========================================================
 //  DISPOSABLE USERNAME GENERATOR TAB
