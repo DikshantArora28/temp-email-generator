@@ -129,28 +129,12 @@ async function guerrilla_request(params) {
     const url = GUERRILLA_BASE_URL + '?' + new URLSearchParams(params).toString();
     let lastErr;
     for (const proxy of GUERRILLA_PROXY_CHAIN) {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout per attempt
         try {
             const fullUrl = proxy ? proxy + encodeURIComponent(url) : url;
-            const res = await fetch(fullUrl, {
-                headers: { 'Accept': 'application/json' },
-                signal: controller.signal,
-                credentials: 'omit'
-            });
-            clearTimeout(timeoutId);
+            const res = await fetch(fullUrl, { headers: { 'Accept': 'application/json' } });
             if (!res.ok) { lastErr = new Error('HTTP ' + res.status); continue; }
-            const text = await res.text();
-            try {
-                return JSON.parse(text);
-            } catch {
-                lastErr = new Error('Invalid JSON response');
-                continue;
-            }
-        } catch (e) {
-            clearTimeout(timeoutId);
-            lastErr = e;
-        }
+            return await res.json();
+        } catch (e) { lastErr = e; }
     }
     throw lastErr || new Error('Guerrilla Mail unavailable');
 }
