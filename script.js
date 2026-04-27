@@ -114,8 +114,13 @@ async function mailtm_fetchMessage(base, token, id) {
 }
 
 // ==========================================================
-//  DOMAIN FETCHING
+//  DOMAIN FILTERING & CACHING
 // ==========================================================
+// Domains to exclude: either unreliable, deprecated, or known to fail
+const BLACKLISTED_DOMAINS = [
+    'guerrillamailblock.com',  // Guerrilla Mail - doesn't work from browser
+];
+
 // Persisted domain cache — keeps all domains we've ever seen so user gets more options
 // even when Mail.tm/Mail.gw temporarily reduce their live list.
 const DOMAIN_CACHE_KEY = 'tempemail_domain_cache';
@@ -159,7 +164,11 @@ async function fetchAllDomains() {
     const liveDomains = [];
     const liveSet = new Set();
     function addLive(domains, base) {
-        domains.forEach(d => { if (!liveSet.has(d)) { liveDomains.push({ domain: d, provider: 'mailtm', base }); liveSet.add(d); } });
+        domains.forEach(d => {
+            // Filter out blacklisted domains
+            if (BLACKLISTED_DOMAINS.includes(d)) return;
+            if (!liveSet.has(d)) { liveDomains.push({ domain: d, provider: 'mailtm', base }); liveSet.add(d); }
+        });
     }
     addLive(results[0].status === 'fulfilled' ? results[0].value : [], 'https://api.mail.tm');
     addLive(results[1].status === 'fulfilled' ? results[1].value : [], 'https://api.mail.gw');
@@ -167,10 +176,10 @@ async function fetchAllDomains() {
     // Update cache with currently-live domains
     const cache = updateDomainCache(liveDomains);
 
-    // Build merged list: live first, then cached-only
+    // Build merged list: live first, then cached-only (excluding blacklisted)
     allDomains = liveDomains.map(d => ({ ...d, isLive: true }));
     cache.forEach(c => {
-        if (!liveSet.has(c.domain)) {
+        if (!liveSet.has(c.domain) && !BLACKLISTED_DOMAINS.includes(c.domain)) {
             allDomains.push({ domain: c.domain, provider: 'mailtm', base: c.base, isLive: false, lastSeen: c.lastSeen });
         }
     });
@@ -187,7 +196,7 @@ async function fetchAllDomains() {
 setInterval(() => { fetchAllDomains(); }, 30000);
 
 // ==========================================================
-//  DROPDOWN
+//  DOMAIN LABELS
 // ==========================================================
 const CHEMICAL_LABELS = {
     'oakon.com':              'Oakon Chemicals',
