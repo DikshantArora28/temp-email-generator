@@ -176,6 +176,10 @@ body{
 .domain-select-row select option{background:var(--bg-card);color:var(--text)}
 .domain-select-row select optgroup{color:var(--gold);font-weight:600;background:var(--bg)}
 .domain-count{font-size:11px;font-weight:700;color:var(--gold);background:var(--gold-bg);border:1px solid rgba(240,192,64,0.2);padding:2px 8px;border-radius:10px;white-space:nowrap}
+.domain-refresh-btn{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-2);border-radius:6px;cursor:pointer;transition:all .2s;flex-shrink:0}
+.domain-refresh-btn:hover{color:var(--accent);border-color:var(--accent)}
+.domain-refresh-btn.spinning svg{animation:spin 1s linear infinite}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 .account-counter{position:absolute;top:12px;right:16px;font-size:11px;font-weight:700;color:var(--accent);background:var(--accent-bg);padding:3px 10px;border-radius:10px;border:1px solid rgba(0,210,160,0.2)}
 .account-counter.at-limit{color:var(--danger);background:rgba(255,107,129,0.1);border-color:rgba(255,107,129,0.2)}
 

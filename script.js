@@ -116,23 +116,75 @@ async function mailtm_fetchMessage(base, token, id) {
 // ==========================================================
 //  DOMAIN FETCHING
 // ==========================================================
+// Persisted domain cache — keeps all domains we've ever seen so user gets more options
+// even when Mail.tm/Mail.gw temporarily reduce their live list.
+const DOMAIN_CACHE_KEY = 'tempemail_domain_cache';
+const CACHE_MAX_AGE_DAYS = 30;
+
+function loadDomainCache() {
+    try {
+        const raw = localStorage.getItem(DOMAIN_CACHE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        const cutoff = Date.now() - CACHE_MAX_AGE_DAYS * 24 * 3600 * 1000;
+        return (parsed || []).filter(d => d.lastSeen > cutoff);
+    } catch { return []; }
+}
+
+function saveDomainCache(cache) {
+    try { localStorage.setItem(DOMAIN_CACHE_KEY, JSON.stringify(cache)); } catch {}
+}
+
+function updateDomainCache(liveDomains) {
+    const cache = loadDomainCache();
+    const map = new Map(cache.map(d => [d.domain, d]));
+    const now = Date.now();
+    liveDomains.forEach(d => {
+        const existing = map.get(d.domain);
+        if (existing) { existing.lastSeen = now; existing.base = d.base; }
+        else { map.set(d.domain, { domain: d.domain, base: d.base, firstSeen: now, lastSeen: now }); }
+    });
+    const arr = [...map.values()];
+    saveDomainCache(arr);
+    return arr;
+}
+
+let lastDomainRefresh = 0;
 async function fetchAllDomains() {
     domainSelect.innerHTML = '<option>Loading domains...</option>';
     const results = await Promise.allSettled([
         mailtm_fetchDomains('https://api.mail.tm'),
         mailtm_fetchDomains('https://api.mail.gw'),
     ]);
-    allDomains = [];
-    const existing = new Set();
-    function add(domains, base) {
-        domains.forEach(d => { if (!existing.has(d)) { allDomains.push({ domain: d, provider: 'mailtm', base }); existing.add(d); } });
+    const liveDomains = [];
+    const liveSet = new Set();
+    function addLive(domains, base) {
+        domains.forEach(d => { if (!liveSet.has(d)) { liveDomains.push({ domain: d, provider: 'mailtm', base }); liveSet.add(d); } });
     }
-    add(results[0].status === 'fulfilled' ? results[0].value : [], 'https://api.mail.tm');
-    add(results[1].status === 'fulfilled' ? results[1].value : [], 'https://api.mail.gw');
-    console.log(`Loaded ${allDomains.length} total domains`);
-    domainCount.textContent = `${allDomains.length} domains`;
+    addLive(results[0].status === 'fulfilled' ? results[0].value : [], 'https://api.mail.tm');
+    addLive(results[1].status === 'fulfilled' ? results[1].value : [], 'https://api.mail.gw');
+
+    // Update cache with currently-live domains
+    const cache = updateDomainCache(liveDomains);
+
+    // Build merged list: live first, then cached-only
+    allDomains = liveDomains.map(d => ({ ...d, isLive: true }));
+    cache.forEach(c => {
+        if (!liveSet.has(c.domain)) {
+            allDomains.push({ domain: c.domain, provider: 'mailtm', base: c.base, isLive: false, lastSeen: c.lastSeen });
+        }
+    });
+
+    lastDomainRefresh = Date.now();
+    const liveCount = liveDomains.length;
+    const totalCount = allDomains.length;
+    console.log(`Loaded ${liveCount} live + ${totalCount - liveCount} cached = ${totalCount} total domains`);
+    domainCount.textContent = liveCount === totalCount ? `${totalCount} domains` : `${liveCount} live, ${totalCount - liveCount} recent`;
     populateDomainDropdown();
 }
+
+// Auto-refresh domains every 30 seconds
+setInterval(() => { fetchAllDomains(); }, 30000);
 
 // ==========================================================
 //  DROPDOWN
@@ -150,28 +202,42 @@ function populateDomainDropdown() {
     domainSelect.innerHTML = '';
     if (allDomains.length === 0) { domainSelect.innerHTML = '<option>No domains available</option>'; return; }
 
-    const labeledDomains = allDomains.filter(d => CHEMICAL_LABELS[d.domain]);
-    const plainDomains   = allDomains.filter(d => !CHEMICAL_LABELS[d.domain]);
+    const liveDomains   = allDomains.filter(d => d.isLive);
+    const cachedDomains = allDomains.filter(d => !d.isLive);
+    const labeledLive   = liveDomains.filter(d => CHEMICAL_LABELS[d.domain]);
+    const plainLive     = liveDomains.filter(d => !CHEMICAL_LABELS[d.domain]);
 
-    if (labeledDomains.length > 0) {
+    if (labeledLive.length > 0) {
         const grp = document.createElement('optgroup');
-        grp.label = `\u2697 Chemical & Industrial  (${labeledDomains.length})`;
-        labeledDomains.forEach(d => {
+        grp.label = `\u2697 Chemical & Industrial  (${labeledLive.length})`;
+        labeledLive.forEach(d => {
             const opt = document.createElement('option');
             opt.value = JSON.stringify({ provider: 'mailtm', domain: d.domain, base: d.base });
-            opt.textContent = `${CHEMICAL_LABELS[d.domain]}  \u2014  @${d.domain}`;
+            opt.textContent = `\ud83d\udfe2 ${CHEMICAL_LABELS[d.domain]}  \u2014  @${d.domain}`;
             grp.appendChild(opt);
         });
         domainSelect.appendChild(grp);
     }
 
-    if (plainDomains.length > 0) {
+    if (plainLive.length > 0) {
         const grp = document.createElement('optgroup');
-        grp.label = `Other Domains  (${plainDomains.length})`;
-        plainDomains.forEach(d => {
+        grp.label = `Live Domains  (${plainLive.length})`;
+        plainLive.forEach(d => {
             const opt = document.createElement('option');
             opt.value = JSON.stringify({ provider: 'mailtm', domain: d.domain, base: d.base });
-            opt.textContent = `@${d.domain}`;
+            opt.textContent = `\ud83d\udfe2 @${d.domain}`;
+            grp.appendChild(opt);
+        });
+        domainSelect.appendChild(grp);
+    }
+
+    if (cachedDomains.length > 0) {
+        const grp = document.createElement('optgroup');
+        grp.label = `Recently Available  (${cachedDomains.length})`;
+        cachedDomains.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = JSON.stringify({ provider: 'mailtm', domain: d.domain, base: d.base, cached: true });
+            opt.textContent = `\ud83d\udfe1 @${d.domain}`;
             grp.appendChild(opt);
         });
         domainSelect.appendChild(grp);
@@ -186,11 +252,29 @@ async function createAccount(selection) {
     let domainInfo;
     if (selection) { domainInfo = JSON.parse(selection); }
     else { domainInfo = allDomains[0]; if (!domainInfo) throw new Error('No domains loaded.'); }
-    const address = `${username}@${domainInfo.domain}`;
-    if (domainInfo.provider === 'mailtm') {
+    const isCached = !!domainInfo.cached;
+
+    async function tryCreate(d) {
+        const address = `${username}@${d.domain}`;
         const password = rnd(16);
-        const { id, token } = await mailtm_createAccount(domainInfo.base, address, password);
-        return { provider: 'mailtm', base: domainInfo.base, id, address, token, knownMessageIds: new Set(), readMessageIds: new Set(), messages: [] };
+        const { id, token } = await mailtm_createAccount(d.base, address, password);
+        return { provider: 'mailtm', base: d.base, id, address, token, knownMessageIds: new Set(), readMessageIds: new Set(), messages: [] };
+    }
+
+    if (domainInfo.provider === 'mailtm') {
+        try {
+            return await tryCreate(domainInfo);
+        } catch (err) {
+            // If a cached domain fails (likely no longer accepted), fall back to a live domain
+            if (isCached) {
+                const liveDomain = allDomains.find(d => d.isLive);
+                if (liveDomain) {
+                    showToast(`@${domainInfo.domain} no longer available, using @${liveDomain.domain} instead`);
+                    return await tryCreate(liveDomain);
+                }
+            }
+            throw err;
+        }
     }
     throw new Error('Unknown provider');
 }
@@ -1519,6 +1603,17 @@ document.getElementById('vcardDownloadBtn').addEventListener('click', () => {
         sendTrack('/error', { message: 'Unhandled Promise: ' + (e.reason?.message || String(e.reason) || ''), source: 'promise', line: 0, col: 0 });
     });
 })();
+
+// ===== Domain refresh button =====
+const domainRefreshBtn = document.getElementById('domainRefreshBtn');
+if (domainRefreshBtn) {
+    domainRefreshBtn.addEventListener('click', async () => {
+        domainRefreshBtn.classList.add('spinning');
+        await fetchAllDomains();
+        setTimeout(() => domainRefreshBtn.classList.remove('spinning'), 500);
+        showToast('Domains refreshed');
+    });
+}
 
 // ===== INIT =====
 updateAccountCounter(); updateGenerateButton(); fetchAllDomains();
