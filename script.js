@@ -114,6 +114,78 @@ async function mailtm_fetchMessage(base, token, id) {
 }
 
 // ==========================================================
+//  PROVIDER: Guerrilla Mail
+// ==========================================================
+const GUERRILLA_DOMAINS = [
+    'sharklasers.com', 'guerrillamail.com', 'guerrillamail.de', 'guerrillamail.info',
+    'guerrillamail.net', 'guerrillamail.org', 'spam4.me', 'pokemail.net', 'grr.la', 'guerrillamailblock.com'
+];
+const GUERRILLA_BASE = 'https://api.guerrillamail.com/ajax.php';
+const CORS_PROXIES = [
+    null, // try direct first
+    'https://corsproxy.io/?',
+    'https://api.allorigins.win/raw?url=',
+    'https://api.codetabs.com/v1/proxy?quest='
+];
+
+async function guerrilla_request(params) {
+    const url = GUERRILLA_BASE + '?' + new URLSearchParams(params).toString();
+    let lastErr;
+    for (const proxy of CORS_PROXIES) {
+        try {
+            const fullUrl = proxy ? proxy + encodeURIComponent(url) : url;
+            const res = await fetch(fullUrl, { headers: { 'Accept': 'application/json' } });
+            if (!res.ok) { lastErr = new Error('HTTP ' + res.status); continue; }
+            return await res.json();
+        } catch (e) { lastErr = e; }
+    }
+    throw lastErr || new Error('Guerrilla Mail unavailable');
+}
+
+async function guerrilla_createAccount(domain, username) {
+    // Initialize session
+    const init = await guerrilla_request({ f: 'get_email_address', ip: '127.0.0.1', agent: 'Mozilla', site: domain, lang: 'en' });
+    let sid = init.sid_token;
+    let address = init.email_addr;
+    // Try setting a custom username on the requested domain
+    try {
+        const set = await guerrilla_request({ f: 'set_email_user', email_user: username, sid_token: sid, lang: 'en', site: domain });
+        if (set && set.email_addr) {
+            sid = set.sid_token || sid;
+            address = set.email_addr;
+        }
+    } catch {}
+    return { sid_token: sid, address };
+}
+
+async function guerrilla_fetchMessages(sid_token) {
+    const r = await guerrilla_request({ f: 'check_email', seq: 0, sid_token });
+    return (r.list || []).map(m => ({
+        id: String(m.mail_id),
+        from: { address: m.mail_from || '', name: '' },
+        subject: m.mail_subject || '(no subject)',
+        intro: (m.mail_excerpt || '').slice(0, 200),
+        seen: m.mail_read === 1 || m.mail_read === '1',
+        createdAt: m.mail_timestamp ? new Date(parseInt(m.mail_timestamp) * 1000).toISOString() : new Date().toISOString(),
+    }));
+}
+
+async function guerrilla_fetchMessage(sid_token, email_id) {
+    const r = await guerrilla_request({ f: 'fetch_email', email_id, sid_token });
+    const body = r.mail_body || '';
+    const isHtml = /<[a-z][\s\S]*>/i.test(body);
+    return {
+        id: String(r.mail_id),
+        from: { address: r.mail_from || '', name: '' },
+        subject: r.mail_subject || '',
+        text: isHtml ? body.replace(/<[^>]+>/g, '') : body,
+        html: isHtml ? [body] : [body.replace(/\n/g, '<br>')],
+        createdAt: r.mail_timestamp ? new Date(parseInt(r.mail_timestamp) * 1000).toISOString() : new Date().toISOString(),
+        attachments: []
+    };
+}
+
+// ==========================================================
 //  DOMAIN FETCHING
 // ==========================================================
 // Persisted domain cache — keeps all domains we've ever seen so user gets more options
@@ -141,8 +213,8 @@ function updateDomainCache(liveDomains) {
     const now = Date.now();
     liveDomains.forEach(d => {
         const existing = map.get(d.domain);
-        if (existing) { existing.lastSeen = now; existing.base = d.base; }
-        else { map.set(d.domain, { domain: d.domain, base: d.base, firstSeen: now, lastSeen: now }); }
+        if (existing) { existing.lastSeen = now; existing.base = d.base; existing.provider = d.provider || existing.provider || 'mailtm'; }
+        else { map.set(d.domain, { domain: d.domain, base: d.base, provider: d.provider || 'mailtm', firstSeen: now, lastSeen: now }); }
     });
     const arr = [...map.values()];
     saveDomainCache(arr);
@@ -164,6 +236,14 @@ async function fetchAllDomains() {
     addLive(results[0].status === 'fulfilled' ? results[0].value : [], 'https://api.mail.tm');
     addLive(results[1].status === 'fulfilled' ? results[1].value : [], 'https://api.mail.gw');
 
+    // Add Guerrilla Mail domains (always treated as live - they don't have an availability API)
+    GUERRILLA_DOMAINS.forEach(d => {
+        if (!liveSet.has(d)) {
+            liveDomains.push({ domain: d, provider: 'guerrilla', base: 'guerrilla' });
+            liveSet.add(d);
+        }
+    });
+
     // Update cache with currently-live domains
     const cache = updateDomainCache(liveDomains);
 
@@ -171,14 +251,16 @@ async function fetchAllDomains() {
     allDomains = liveDomains.map(d => ({ ...d, isLive: true }));
     cache.forEach(c => {
         if (!liveSet.has(c.domain)) {
-            allDomains.push({ domain: c.domain, provider: 'mailtm', base: c.base, isLive: false, lastSeen: c.lastSeen });
+            allDomains.push({ domain: c.domain, provider: c.provider || 'mailtm', base: c.base, isLive: false, lastSeen: c.lastSeen });
         }
     });
 
     lastDomainRefresh = Date.now();
     const liveCount = liveDomains.length;
     const totalCount = allDomains.length;
-    console.log(`Loaded ${liveCount} live + ${totalCount - liveCount} cached = ${totalCount} total domains`);
+    const mailtmCount = liveDomains.filter(d => d.provider !== 'guerrilla').length;
+    const guerrillaCount = liveDomains.filter(d => d.provider === 'guerrilla').length;
+    console.log(`Loaded ${mailtmCount} Mail.tm + ${guerrillaCount} Guerrilla + ${totalCount - liveCount} cached = ${totalCount} total domains`);
     domainCount.textContent = liveCount === totalCount ? `${totalCount} domains` : `${liveCount} live, ${totalCount - liveCount} recent`;
     populateDomainDropdown();
 }
@@ -202,44 +284,48 @@ function populateDomainDropdown() {
     domainSelect.innerHTML = '';
     if (allDomains.length === 0) { domainSelect.innerHTML = '<option>No domains available</option>'; return; }
 
-    const liveDomains   = allDomains.filter(d => d.isLive);
+    const mailtmLive    = allDomains.filter(d => d.isLive && d.provider !== 'guerrilla');
+    const guerrillaLive = allDomains.filter(d => d.isLive && d.provider === 'guerrilla');
     const cachedDomains = allDomains.filter(d => !d.isLive);
-    const labeledLive   = liveDomains.filter(d => CHEMICAL_LABELS[d.domain]);
-    const plainLive     = liveDomains.filter(d => !CHEMICAL_LABELS[d.domain]);
+    const labeledMailtm = mailtmLive.filter(d => CHEMICAL_LABELS[d.domain]);
+    const plainMailtm   = mailtmLive.filter(d => !CHEMICAL_LABELS[d.domain]);
 
-    if (labeledLive.length > 0) {
+    function makeOpt(d, prefix, cached) {
+        const opt = document.createElement('option');
+        opt.value = JSON.stringify({ provider: d.provider || 'mailtm', domain: d.domain, base: d.base, cached: !!cached });
+        opt.textContent = prefix + ' @' + d.domain;
+        return opt;
+    }
+
+    if (labeledMailtm.length > 0) {
         const grp = document.createElement('optgroup');
-        grp.label = `\u2697 Chemical & Industrial  (${labeledLive.length})`;
-        labeledLive.forEach(d => {
-            const opt = document.createElement('option');
-            opt.value = JSON.stringify({ provider: 'mailtm', domain: d.domain, base: d.base });
+        grp.label = `\u2697 Chemical & Industrial  (${labeledMailtm.length})`;
+        labeledMailtm.forEach(d => {
+            const opt = makeOpt(d, '\ud83d\udfe2');
             opt.textContent = `\ud83d\udfe2 ${CHEMICAL_LABELS[d.domain]}  \u2014  @${d.domain}`;
             grp.appendChild(opt);
         });
         domainSelect.appendChild(grp);
     }
 
-    if (plainLive.length > 0) {
+    if (plainMailtm.length > 0) {
         const grp = document.createElement('optgroup');
-        grp.label = `Live Domains  (${plainLive.length})`;
-        plainLive.forEach(d => {
-            const opt = document.createElement('option');
-            opt.value = JSON.stringify({ provider: 'mailtm', domain: d.domain, base: d.base });
-            opt.textContent = `\ud83d\udfe2 @${d.domain}`;
-            grp.appendChild(opt);
-        });
+        grp.label = `Mail.tm / Mail.gw Domains  (${plainMailtm.length})`;
+        plainMailtm.forEach(d => grp.appendChild(makeOpt(d, '\ud83d\udfe2')));
+        domainSelect.appendChild(grp);
+    }
+
+    if (guerrillaLive.length > 0) {
+        const grp = document.createElement('optgroup');
+        grp.label = `Guerrilla Mail Domains  (${guerrillaLive.length})`;
+        guerrillaLive.forEach(d => grp.appendChild(makeOpt(d, '\ud83e\udd88')));
         domainSelect.appendChild(grp);
     }
 
     if (cachedDomains.length > 0) {
         const grp = document.createElement('optgroup');
         grp.label = `Recently Available  (${cachedDomains.length})`;
-        cachedDomains.forEach(d => {
-            const opt = document.createElement('option');
-            opt.value = JSON.stringify({ provider: 'mailtm', domain: d.domain, base: d.base, cached: true });
-            opt.textContent = `\ud83d\udfe1 @${d.domain}`;
-            grp.appendChild(opt);
-        });
+        cachedDomains.forEach(d => grp.appendChild(makeOpt(d, '\ud83d\udfe1', true)));
         domainSelect.appendChild(grp);
     }
 }
@@ -254,40 +340,46 @@ async function createAccount(selection) {
     else { domainInfo = allDomains[0]; if (!domainInfo) throw new Error('No domains loaded.'); }
     const isCached = !!domainInfo.cached;
 
-    async function tryCreate(d) {
+    async function tryCreateMailtm(d) {
         const address = `${username}@${d.domain}`;
         const password = rnd(16);
         const { id, token } = await mailtm_createAccount(d.base, address, password);
         return { provider: 'mailtm', base: d.base, id, address, token, knownMessageIds: new Set(), readMessageIds: new Set(), messages: [] };
     }
 
-    if (domainInfo.provider === 'mailtm') {
-        try {
-            return await tryCreate(domainInfo);
-        } catch (err) {
-            // If a cached domain fails (likely no longer accepted), fall back to a live domain
-            if (isCached) {
-                const liveDomain = allDomains.find(d => d.isLive);
-                if (liveDomain) {
-                    showToast(`@${domainInfo.domain} no longer available, using @${liveDomain.domain} instead`);
-                    return await tryCreate(liveDomain);
-                }
-            }
-            throw err;
-        }
+    async function tryCreateGuerrilla(d) {
+        const { sid_token, address } = await guerrilla_createAccount(d.domain, username);
+        return { provider: 'guerrilla', sid_token, address, knownMessageIds: new Set(), readMessageIds: new Set(), messages: [] };
     }
-    throw new Error('Unknown provider');
+
+    try {
+        if (domainInfo.provider === 'guerrilla') return await tryCreateGuerrilla(domainInfo);
+        return await tryCreateMailtm(domainInfo);
+    } catch (err) {
+        // If a cached domain fails, fall back to any live domain
+        if (isCached) {
+            const liveDomain = allDomains.find(d => d.isLive);
+            if (liveDomain) {
+                showToast(`@${domainInfo.domain} no longer available, using @${liveDomain.domain} instead`);
+                if (liveDomain.provider === 'guerrilla') return await tryCreateGuerrilla(liveDomain);
+                return await tryCreateMailtm(liveDomain);
+            }
+        }
+        throw err;
+    }
 }
 
 // ==========================================================
 //  FETCH MESSAGES
 // ==========================================================
 async function fetchMessagesForAccount(acc) {
-    if (acc.provider === 'mailtm')   return mailtm_fetchMessages(acc.base, acc.token);
+    if (acc.provider === 'mailtm')    return mailtm_fetchMessages(acc.base, acc.token);
+    if (acc.provider === 'guerrilla') return guerrilla_fetchMessages(acc.sid_token);
     return [];
 }
 async function fetchMessageForAccount(acc, msgId) {
-    if (acc.provider === 'mailtm')   return mailtm_fetchMessage(acc.base, acc.token, msgId);
+    if (acc.provider === 'mailtm')    return mailtm_fetchMessage(acc.base, acc.token, msgId);
+    if (acc.provider === 'guerrilla') return guerrilla_fetchMessage(acc.sid_token, msgId);
     throw new Error('Unknown provider');
 }
 
