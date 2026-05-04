@@ -24,7 +24,8 @@
       "mcp__Claude_in_Chrome__navigate",
       "mcp__Claude_in_Chrome__javascript_tool",
       "mcp__Claude_in_Chrome__read_console_messages",
-      "WebFetch(domain:docs.mail.tm)"
+      "WebFetch(domain:docs.mail.tm)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }

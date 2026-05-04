@@ -114,6 +114,122 @@ async function mailtm_fetchMessage(base, token, id) {
 }
 
 // ==========================================================
+//  PROVIDER: Mailsac (via backend proxy)
+// ==========================================================
+const BACKEND_BASE = 'https://dikshantarora28.pythonanywhere.com';
+
+async function mailsac_fetchDomains() {
+    try {
+        const res = await fetch(`${BACKEND_BASE}/api/email/mailsac/domains`);
+        if (!res.ok) return [];
+        const data = await res.json();
+        // Mailsac returns domains, format: [{ domain: '...', ..., }, ...]
+        return (data.domains || []).map(d => ({
+            domain: typeof d === 'string' ? d : d.domain,
+            provider: 'mailsac',
+            isPublic: true
+        }));
+    } catch { return []; }
+}
+
+async function mailsac_createAccount(domain) {
+    try {
+        // Mailsac doesn't require account creation - just use any address@domain
+        const username = `${getRandomName()}${rnd(2)}`;
+        const address = `${username}@${domain}`;
+        // For Mailsac, we just need the address and fetch via proxy
+        return { provider: 'mailsac', address, domain, knownMessageIds: new Set(), readMessageIds: new Set(), messages: [] };
+    } catch (err) {
+        throw new Error('Mailsac account creation failed: ' + err.message);
+    }
+}
+
+async function mailsac_fetchMessages(address) {
+    try {
+        const inbox = address.split('@')[0];
+        const res = await fetch(`${BACKEND_BASE}/api/email/mailsac/inbox/${inbox}`);
+        if (!res.ok) return [];
+        const data = await res.json();
+        // Mailsac message format: { messages: [...] }
+        return (data.messages || []).map(m => ({
+            id: m.messageId || m.id,
+            from: m.from || m.senderEmail || 'Unknown',
+            subject: m.subject || '(no subject)',
+            intro: m.text ? m.text.substring(0, 100) : '',
+            seen: false,
+            createdAt: m.received || new Date().toISOString()
+        }));
+    } catch { return []; }
+}
+
+async function mailsac_fetchMessage(address, msgId) {
+    try {
+        const inbox = address.split('@')[0];
+        const res = await fetch(`${BACKEND_BASE}/api/email/mailsac/messages/${inbox}/${msgId}`);
+        if (!res.ok) throw new Error('Failed to load message');
+        return res.json();
+    } catch (err) {
+        throw new Error('Failed to fetch message: ' + err.message);
+    }
+}
+
+// ==========================================================
+//  PROVIDER: MailSlurp (via backend proxy)
+// ==========================================================
+async function mailslurp_fetchDomains() {
+    try {
+        const res = await fetch(`${BACKEND_BASE}/api/email/mailslurp/domains`);
+        if (!res.ok) return [];
+        const data = await res.json();
+        // MailSlurp returns domains in different format
+        return (data.domains || []).map(d => ({
+            domain: typeof d === 'string' ? d : d.domain,
+            provider: 'mailslurp',
+            isPublic: true
+        }));
+    } catch { return []; }
+}
+
+async function mailslurp_createAccount(domain) {
+    try {
+        const username = `${getRandomName()}${rnd(2)}`;
+        const address = `${username}@${domain}`;
+        return { provider: 'mailslurp', address, domain, inboxId: null, knownMessageIds: new Set(), readMessageIds: new Set(), messages: [] };
+    } catch (err) {
+        throw new Error('MailSlurp account creation failed: ' + err.message);
+    }
+}
+
+async function mailslurp_fetchMessages(address) {
+    try {
+        const inbox = address.split('@')[0];
+        const res = await fetch(`${BACKEND_BASE}/api/email/mailslurp/inboxes/${inbox}`);
+        if (!res.ok) return [];
+        const data = await res.json();
+        // MailSlurp message format varies
+        const msgs = Array.isArray(data) ? data : data.emails || data.messages || [];
+        return msgs.map(m => ({
+            id: m.id || m.messageId,
+            from: m.from || m.senderEmail || 'Unknown',
+            subject: m.subject || '(no subject)',
+            intro: m.preview || m.text ? (m.text || m.preview).substring(0, 100) : '',
+            seen: false,
+            createdAt: m.createdAt || new Date().toISOString()
+        }));
+    } catch { return []; }
+}
+
+async function mailslurp_fetchMessage(address, msgId) {
+    try {
+        const res = await fetch(`${BACKEND_BASE}/api/email/mailslurp/messages/${msgId}`);
+        if (!res.ok) throw new Error('Failed to load message');
+        return res.json();
+    } catch (err) {
+        throw new Error('Failed to fetch message: ' + err.message);
+    }
+}
+
+// ==========================================================
 //  DOMAIN FILTERING & CACHING
 // ==========================================================
 // Domains to exclude: either unreliable, deprecated, or known to fail
@@ -160,18 +276,30 @@ async function fetchAllDomains() {
     const results = await Promise.allSettled([
         mailtm_fetchDomains('https://api.mail.tm'),
         mailtm_fetchDomains('https://api.mail.gw'),
+        mailsac_fetchDomains(),
+        mailslurp_fetchDomains(),
     ]);
     const liveDomains = [];
     const liveSet = new Set();
-    function addLive(domains, base) {
+
+    function addLive(domains, provider, base = null) {
         domains.forEach(d => {
+            const domain = typeof d === 'string' ? d : d.domain;
+            const prov = typeof d === 'string' ? provider : (d.provider || provider);
             // Filter out blacklisted domains
-            if (BLACKLISTED_DOMAINS.includes(d)) return;
-            if (!liveSet.has(d)) { liveDomains.push({ domain: d, provider: 'mailtm', base }); liveSet.add(d); }
+            if (BLACKLISTED_DOMAINS.includes(domain)) return;
+            if (!liveSet.has(domain)) {
+                const domainObj = { domain, provider: prov, base };
+                if (typeof d === 'object' && !d.base) domainObj.base = base;
+                liveDomains.push(domainObj);
+                liveSet.add(domain);
+            }
         });
     }
-    addLive(results[0].status === 'fulfilled' ? results[0].value : [], 'https://api.mail.tm');
-    addLive(results[1].status === 'fulfilled' ? results[1].value : [], 'https://api.mail.gw');
+    addLive(results[0].status === 'fulfilled' ? results[0].value : [], 'mailtm', 'https://api.mail.tm');
+    addLive(results[1].status === 'fulfilled' ? results[1].value : [], 'mailtm', 'https://api.mail.gw');
+    addLive(results[2].status === 'fulfilled' ? results[2].value : [], 'mailsac');
+    addLive(results[3].status === 'fulfilled' ? results[3].value : [], 'mailslurp');
 
     // Update cache with currently-live domains
     const cache = updateDomainCache(liveDomains);
@@ -221,7 +349,7 @@ function populateDomainDropdown() {
         grp.label = `\u2697 Chemical & Industrial  (${labeledLive.length})`;
         labeledLive.forEach(d => {
             const opt = document.createElement('option');
-            opt.value = JSON.stringify({ provider: 'mailtm', domain: d.domain, base: d.base });
+            opt.value = JSON.stringify({ provider: d.provider, domain: d.domain, base: d.base });
             opt.textContent = `\ud83d\udfe2 ${CHEMICAL_LABELS[d.domain]}  \u2014  @${d.domain}`;
             grp.appendChild(opt);
         });
@@ -233,8 +361,9 @@ function populateDomainDropdown() {
         grp.label = `Live Domains  (${plainLive.length})`;
         plainLive.forEach(d => {
             const opt = document.createElement('option');
-            opt.value = JSON.stringify({ provider: 'mailtm', domain: d.domain, base: d.base });
-            opt.textContent = `\ud83d\udfe2 @${d.domain}`;
+            const providerBadge = d.provider === 'mailtm' ? '\ud83d\udfe2' : d.provider === 'mailsac' ? '\ud83d\udd35' : '\ud83d\udfe3';
+            opt.value = JSON.stringify({ provider: d.provider, domain: d.domain, base: d.base });
+            opt.textContent = `${providerBadge} @${d.domain}  (${d.provider})`;
             grp.appendChild(opt);
         });
         domainSelect.appendChild(grp);
@@ -245,7 +374,7 @@ function populateDomainDropdown() {
         grp.label = `Recently Available  (${cachedDomains.length})`;
         cachedDomains.forEach(d => {
             const opt = document.createElement('option');
-            opt.value = JSON.stringify({ provider: 'mailtm', domain: d.domain, base: d.base, cached: true });
+            opt.value = JSON.stringify({ provider: d.provider, domain: d.domain, base: d.base, cached: true });
             opt.textContent = `\ud83d\udfe1 @${d.domain}`;
             grp.appendChild(opt);
         });
@@ -263,29 +392,48 @@ async function createAccount(selection) {
     else { domainInfo = allDomains[0]; if (!domainInfo) throw new Error('No domains loaded.'); }
     const isCached = !!domainInfo.cached;
 
-    async function tryCreate(d) {
+    async function tryCreateMailtm(d) {
         const address = `${username}@${d.domain}`;
         const password = rnd(16);
         const { id, token } = await mailtm_createAccount(d.base, address, password);
         return { provider: 'mailtm', base: d.base, id, address, token, knownMessageIds: new Set(), readMessageIds: new Set(), messages: [] };
     }
 
+    async function tryCreateMailsac(d) {
+        return await mailsac_createAccount(d.domain);
+    }
+
+    async function tryCreateMailslurp(d) {
+        return await mailslurp_createAccount(d.domain);
+    }
+
     if (domainInfo.provider === 'mailtm') {
         try {
-            return await tryCreate(domainInfo);
+            return await tryCreateMailtm(domainInfo);
         } catch (err) {
-            // If a cached domain fails (likely no longer accepted), fall back to a live domain
             if (isCached) {
-                const liveDomain = allDomains.find(d => d.isLive);
+                const liveDomain = allDomains.find(d => d.isLive && d.provider === 'mailtm');
                 if (liveDomain) {
                     showToast(`@${domainInfo.domain} no longer available, using @${liveDomain.domain} instead`);
-                    return await tryCreate(liveDomain);
+                    return await tryCreateMailtm(liveDomain);
                 }
             }
             throw err;
         }
+    } else if (domainInfo.provider === 'mailsac') {
+        try {
+            return await tryCreateMailsac(domainInfo);
+        } catch (err) {
+            throw new Error('Mailsac creation failed: ' + err.message);
+        }
+    } else if (domainInfo.provider === 'mailslurp') {
+        try {
+            return await tryCreateMailslurp(domainInfo);
+        } catch (err) {
+            throw new Error('MailSlurp creation failed: ' + err.message);
+        }
     }
-    throw new Error('Unknown provider');
+    throw new Error('Unknown provider: ' + domainInfo.provider);
 }
 
 // ==========================================================
@@ -293,11 +441,15 @@ async function createAccount(selection) {
 // ==========================================================
 async function fetchMessagesForAccount(acc) {
     if (acc.provider === 'mailtm')   return mailtm_fetchMessages(acc.base, acc.token);
+    if (acc.provider === 'mailsac')  return mailsac_fetchMessages(acc.address);
+    if (acc.provider === 'mailslurp') return mailslurp_fetchMessages(acc.address);
     return [];
 }
 async function fetchMessageForAccount(acc, msgId) {
     if (acc.provider === 'mailtm')   return mailtm_fetchMessage(acc.base, acc.token, msgId);
-    throw new Error('Unknown provider');
+    if (acc.provider === 'mailsac')  return mailsac_fetchMessage(acc.address, msgId);
+    if (acc.provider === 'mailslurp') return mailslurp_fetchMessage(acc.address, msgId);
+    throw new Error('Unknown provider: ' + acc.provider);
 }
 
 // ==========================================================
