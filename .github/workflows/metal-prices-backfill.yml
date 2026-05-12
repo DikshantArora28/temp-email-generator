@@ -1,0 +1,40 @@
+name: Backfill Metal Prices History
+
+on:
+  workflow_dispatch:
+    inputs:
+      years:
+        description: 'Years of history to backfill'
+        required: false
+        default: '3'
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r metal-prices-scraper/requirements.txt
+
+      - name: Run backfill
+        run: python metal-prices-scraper/backfill_history.py --years ${{ inputs.years }}
+
+      - name: Commit and push if CSV changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add metal-prices-scraper/prices.csv
+          if git diff --staged --quiet; then
+            echo "No changes after backfill."
+          else
+            git commit -m "Backfill ${{ inputs.years }} years of metal price history"
+            git push
+          fi
