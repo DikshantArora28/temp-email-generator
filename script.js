@@ -522,6 +522,54 @@ async function fetchAllDomains() {
 setInterval(() => { fetchAllDomains(); }, 30000);
 
 // ==========================================================
+//  PROVIDER BRANDING & COLORS
+// ==========================================================
+const PROVIDER_CONFIG = {
+    'mailtm': {
+        name: 'Mail.tm',
+        company: 'Mail.tm',
+        color: '#10B981',      // Green
+        badge: '🟢',
+        bgColor: 'rgba(16, 185, 129, 0.1)',
+    },
+    'mailsac': {
+        name: 'Mailsac',
+        company: 'Mailsac',
+        color: '#3B82F6',      // Blue
+        badge: '🔵',
+        bgColor: 'rgba(59, 130, 246, 0.1)',
+    },
+    'mailslurp': {
+        name: 'MailSlurp',
+        company: 'MailSlurp',
+        color: '#8B5CF6',      // Purple
+        badge: '🟣',
+        bgColor: 'rgba(139, 92, 246, 0.1)',
+    },
+    'guerrillamail': {
+        name: 'Guerrilla Mail',
+        company: 'Guerrilla Mail Labs',
+        color: '#EF4444',      // Red
+        badge: '🔴',
+        bgColor: 'rgba(239, 68, 68, 0.1)',
+    },
+    'dropmail': {
+        name: 'DropMail',
+        company: 'DropMail.me',
+        color: '#F97316',      // Orange
+        badge: '🟠',
+        bgColor: 'rgba(249, 115, 22, 0.1)',
+    },
+    'trashmail': {
+        name: 'Trashmail',
+        company: 'Trashmail.com',
+        color: '#6366F1',      // Indigo
+        badge: '📧',
+        bgColor: 'rgba(99, 102, 241, 0.1)',
+    },
+};
+
+// ==========================================================
 //  DOMAIN LABELS
 // ==========================================================
 const CHEMICAL_LABELS = {
@@ -555,22 +603,32 @@ function populateDomainDropdown() {
     }
 
     if (plainLive.length > 0) {
-        const grp = document.createElement('optgroup');
-        grp.label = `Live Domains  (${plainLive.length})`;
+        // Group live domains by provider
+        const providerGroups = {};
         plainLive.forEach(d => {
-            const opt = document.createElement('option');
-            let providerBadge = '\ud83d\udfe2'; // Green - default
-            if (d.provider === 'mailtm') providerBadge = '\ud83d\udfe2'; // Green
-            else if (d.provider === 'mailsac') providerBadge = '\ud83d\udd35'; // Blue
-            else if (d.provider === 'mailslurp') providerBadge = '\ud83d\udfe3'; // Purple
-            else if (d.provider === 'guerrillamail') providerBadge = '\ud83d\udff6'; // Red flag
-            else if (d.provider === 'dropmail') providerBadge = '\ud83d\udfe0'; // Orange
-            else if (d.provider === 'trashmail') providerBadge = '\ud83d\udcc4'; // Document
-            opt.value = JSON.stringify({ provider: d.provider, domain: d.domain, base: d.base });
-            opt.textContent = `${providerBadge} @${d.domain}  (${d.provider})`;
-            grp.appendChild(opt);
+            if (!providerGroups[d.provider]) providerGroups[d.provider] = [];
+            providerGroups[d.provider].push(d);
         });
-        domainSelect.appendChild(grp);
+
+        // Display domains grouped by provider with company branding
+        const providerOrder = ['mailtm', 'guerrillamail', 'dropmail', 'trashmail'];
+        providerOrder.forEach(provider => {
+            if (!providerGroups[provider]) return;
+            const config = PROVIDER_CONFIG[provider];
+            const domains = providerGroups[provider];
+            const grp = document.createElement('optgroup');
+            grp.label = `${config.badge} ${config.company}  (${domains.length})`;
+
+            domains.forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = JSON.stringify({ provider: d.provider, domain: d.domain, base: d.base });
+                opt.textContent = `@${d.domain}`;
+                opt.style.color = config.color;
+                opt.style.fontWeight = '500';
+                grp.appendChild(opt);
+            });
+            domainSelect.appendChild(grp);
+        });
     }
 
     if (cachedDomains.length > 0) {
