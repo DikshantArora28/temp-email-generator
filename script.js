@@ -229,148 +229,6 @@ async function mailslurp_fetchMessage(address, msgId) {
     }
 }
 
-// ==========================================================
-//  PROVIDER: Guerrilla Mail (via HTTP API)
-// ==========================================================
-async function guerrillamail_fetchDomains() {
-    try {
-        // Guerrilla Mail uses guerrillamailblock.com domain
-        return ['guerrillamailblock.com'];
-    } catch { return []; }
-}
-
-async function guerrillamail_createAccount(domain) {
-    try {
-        // Get email address from Guerrilla Mail
-        const res = await fetch('http://api.guerrillamail.com/ajax.php?f=get_email_address', {
-            method: 'POST',
-        });
-        if (!res.ok) throw new Error('Failed to create Guerrilla Mail account');
-        const data = await res.json();
-        const address = data.email_addr;
-        const sid = data.sid_token;
-        return {
-            provider: 'guerrillamail',
-            address,
-            domain,
-            sid: sid,
-            knownMessageIds: new Set(),
-            readMessageIds: new Set(),
-            messages: []
-        };
-    } catch (err) {
-        throw new Error('Guerrilla Mail account creation failed: ' + err.message);
-    }
-}
-
-async function guerrillamail_fetchMessages(account) {
-    try {
-        const res = await fetch(`http://api.guerrillamail.com/ajax.php?f=check_email&sid_token=${account.sid}`);
-        if (!res.ok) return [];
-        const data = await res.json();
-        const msgs = data.list || [];
-        return msgs.map(m => ({
-            id: m.mail_id,
-            from: m.mail_from,
-            subject: m.mail_subject,
-            intro: m.mail_excerpt,
-            seen: m.mail_read ? true : false,
-            createdAt: new Date(m.mail_date * 1000).toISOString()
-        }));
-    } catch { return []; }
-}
-
-async function guerrillamail_fetchMessage(account, msgId) {
-    try {
-        const res = await fetch(`http://api.guerrillamail.com/ajax.php?f=fetch_email&sid_token=${account.sid}&email_id=${msgId}`);
-        if (!res.ok) throw new Error('Failed to load message');
-        const data = await res.json();
-        return {
-            id: data.mail_id,
-            from: data.mail_from,
-            subject: data.mail_subject,
-            intro: data.mail_excerpt,
-            body: data.mail_body || data.mail_excerpt || '',
-            createdAt: new Date(data.mail_date * 1000).toISOString()
-        };
-    } catch (err) {
-        throw new Error('Failed to fetch message: ' + err.message);
-    }
-}
-
-// ==========================================================
-//  PROVIDER: DropMail (via GraphQL API)
-// ==========================================================
-async function dropmail_fetchDomains() {
-    try {
-        // DropMail uses dropmail.me domain
-        return ['dropmail.me'];
-    } catch { return []; }
-}
-
-async function dropmail_createAccount(domain) {
-    try {
-        // Generate random token for DropMail
-        const token = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
-        const address = `${getRandomName()}${rnd(2)}@${domain}`;
-        return {
-            provider: 'dropmail',
-            address,
-            domain,
-            token,
-            knownMessageIds: new Set(),
-            readMessageIds: new Set(),
-            messages: []
-        };
-    } catch (err) {
-        throw new Error('DropMail account creation failed: ' + err.message);
-    }
-}
-
-async function dropmail_fetchMessages(account) {
-    try {
-        const query = `query { inbox(address: "${account.address}") { emails { id from subject preview createdAt } } }`;
-        const res = await fetch('https://dropmail.me/api/graphql/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query })
-        });
-        if (!res.ok) return [];
-        const data = await res.json();
-        const emails = data.data?.inbox?.emails || [];
-        return emails.map(m => ({
-            id: m.id,
-            from: m.from,
-            subject: m.subject,
-            intro: m.preview || '',
-            seen: false,
-            createdAt: m.createdAt
-        }));
-    } catch { return []; }
-}
-
-async function dropmail_fetchMessage(account, msgId) {
-    try {
-        const query = `query { email(id: "${msgId}") { id from subject text html createdAt } }`;
-        const res = await fetch('https://dropmail.me/api/graphql/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query })
-        });
-        if (!res.ok) throw new Error('Failed to load message');
-        const data = await res.json();
-        const email = data.data?.email || {};
-        return {
-            id: email.id,
-            from: email.from,
-            subject: email.subject,
-            body: email.text || email.html || '',
-            createdAt: email.createdAt
-        };
-    } catch (err) {
-        throw new Error('Failed to fetch message: ' + err.message);
-    }
-}
 
 
 // ==========================================================
@@ -422,8 +280,6 @@ async function fetchAllDomains() {
         mailtm_fetchDomains('https://api.mail.gw'),
         mailsac_fetchDomains(),
         mailslurp_fetchDomains(),
-        guerrillamail_fetchDomains(),
-        dropmail_fetchDomains(),
     ]);
     const liveDomains = [];
     const liveSet = new Set();
@@ -446,8 +302,6 @@ async function fetchAllDomains() {
     addLive(results[1].status === 'fulfilled' ? results[1].value : [], 'mailtm', 'https://api.mail.gw');
     addLive(results[2].status === 'fulfilled' ? results[2].value : [], 'mailsac');
     addLive(results[3].status === 'fulfilled' ? results[3].value : [], 'mailslurp');
-    addLive(results[4].status === 'fulfilled' ? results[4].value : [], 'guerrillamail');
-    addLive(results[5].status === 'fulfilled' ? results[5].value : [], 'dropmail');
 
     // Update cache with currently-live domains
     const cache = updateDomainCache(liveDomains);
@@ -496,20 +350,6 @@ const PROVIDER_CONFIG = {
         badge: '🟣',
         bgColor: 'rgba(139, 92, 246, 0.1)',
     },
-    'guerrillamail': {
-        name: 'Guerrilla Mail',
-        company: 'Guerrilla Mail Labs',
-        color: '#EF4444',      // Red
-        badge: '🔴',
-        bgColor: 'rgba(239, 68, 68, 0.1)',
-    },
-    'dropmail': {
-        name: 'DropMail',
-        company: 'DropMail.me',
-        color: '#F97316',      // Orange
-        badge: '🟠',
-        bgColor: 'rgba(249, 115, 22, 0.1)',
-    },
 };
 
 // ==========================================================
@@ -554,7 +394,7 @@ function populateDomainDropdown() {
         });
 
         // Display domains grouped by provider with company branding
-        const providerOrder = ['mailtm', 'guerrillamail', 'dropmail'];
+        const providerOrder = ['mailtm', 'mailsac', 'mailslurp'];
         providerOrder.forEach(provider => {
             if (!providerGroups[provider]) return;
             const config = PROVIDER_CONFIG[provider];
@@ -616,10 +456,6 @@ async function createAccount(selection) {
         return await guerrillamail_createAccount(d.domain);
     }
 
-    async function tryCreateDropmail(d) {
-        return await dropmail_createAccount(d.domain);
-    }
-
     if (domainInfo.provider === 'mailtm') {
         try {
             return await tryCreateMailtm(domainInfo);
@@ -645,18 +481,6 @@ async function createAccount(selection) {
         } catch (err) {
             throw new Error('MailSlurp creation failed: ' + err.message);
         }
-    } else if (domainInfo.provider === 'guerrillamail') {
-        try {
-            return await tryCreateGuerrillamail(domainInfo);
-        } catch (err) {
-            throw new Error('Guerrilla Mail creation failed: ' + err.message);
-        }
-    } else if (domainInfo.provider === 'dropmail') {
-        try {
-            return await tryCreateDropmail(domainInfo);
-        } catch (err) {
-            throw new Error('DropMail creation failed: ' + err.message);
-        }
     }
     throw new Error('Unknown provider: ' + domainInfo.provider);
 }
@@ -665,19 +489,15 @@ async function createAccount(selection) {
 //  FETCH MESSAGES
 // ==========================================================
 async function fetchMessagesForAccount(acc) {
-    if (acc.provider === 'mailtm')        return mailtm_fetchMessages(acc.base, acc.token);
-    if (acc.provider === 'mailsac')       return mailsac_fetchMessages(acc.address);
-    if (acc.provider === 'mailslurp')     return mailslurp_fetchMessages(acc.address);
-    if (acc.provider === 'guerrillamail') return guerrillamail_fetchMessages(acc);
-    if (acc.provider === 'dropmail')      return dropmail_fetchMessages(acc);
+    if (acc.provider === 'mailtm')    return mailtm_fetchMessages(acc.base, acc.token);
+    if (acc.provider === 'mailsac')   return mailsac_fetchMessages(acc.address);
+    if (acc.provider === 'mailslurp') return mailslurp_fetchMessages(acc.address);
     return [];
 }
 async function fetchMessageForAccount(acc, msgId) {
-    if (acc.provider === 'mailtm')        return mailtm_fetchMessage(acc.base, acc.token, msgId);
-    if (acc.provider === 'mailsac')       return mailsac_fetchMessage(acc.address, msgId);
-    if (acc.provider === 'mailslurp')     return mailslurp_fetchMessage(acc.address, msgId);
-    if (acc.provider === 'guerrillamail') return guerrillamail_fetchMessage(acc, msgId);
-    if (acc.provider === 'dropmail')      return dropmail_fetchMessage(acc, msgId);
+    if (acc.provider === 'mailtm')    return mailtm_fetchMessage(acc.base, acc.token, msgId);
+    if (acc.provider === 'mailsac')   return mailsac_fetchMessage(acc.address, msgId);
+    if (acc.provider === 'mailslurp') return mailslurp_fetchMessage(acc.address, msgId);
     throw new Error('Unknown provider: ' + acc.provider);
 }
 
