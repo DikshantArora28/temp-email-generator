@@ -253,13 +253,33 @@ function loadDomainCache() {
         const parsed = JSON.parse(raw);
         const cutoff = Date.now() - CACHE_MAX_AGE_DAYS * 24 * 3600 * 1000;
         // Only return domains from valid providers
-        return (parsed || []).filter(d => d.lastSeen > cutoff && VALID_PROVIDERS.includes(d.provider));
+        const cached = (parsed || []).filter(d => d.lastSeen > cutoff && VALID_PROVIDERS.includes(d.provider));
+        console.log(`[Cache] Loaded ${cached.length} cached domains from localStorage`);
+        return cached;
     } catch { return []; }
 }
 
 function saveDomainCache(cache) {
     try { localStorage.setItem(DOMAIN_CACHE_KEY, JSON.stringify(cache)); } catch {}
 }
+
+// Clear old unreliable cached domains on first load
+function clearOldDomainCache() {
+    try {
+        const raw = localStorage.getItem(DOMAIN_CACHE_KEY);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            const hasInvalidProviders = parsed.some(d => !VALID_PROVIDERS.includes(d.provider));
+            if (hasInvalidProviders) {
+                console.log('[Cache] Clearing old cached domains from removed providers (guerrillamail, dropmail, trashmail)');
+                // Keep only Mail.tm cached domains
+                const filtered = parsed.filter(d => VALID_PROVIDERS.includes(d.provider));
+                saveDomainCache(filtered);
+            }
+        }
+    } catch { }
+}
+clearOldDomainCache(); // Run on page load
 
 function updateDomainCache(liveDomains) {
     const cache = loadDomainCache();
@@ -417,17 +437,18 @@ function populateDomainDropdown() {
         });
     }
 
-    if (cachedDomains.length > 0) {
-        const grp = document.createElement('optgroup');
-        grp.label = `Recently Available  (${cachedDomains.length})`;
-        cachedDomains.forEach(d => {
-            const opt = document.createElement('option');
-            opt.value = JSON.stringify({ provider: d.provider, domain: d.domain, base: d.base, cached: true });
-            opt.textContent = `\ud83d\udfe1 @${d.domain}`;
-            grp.appendChild(opt);
-        });
-        domainSelect.appendChild(grp);
-    }
+    // Hide "Recently Available" section - only show live domains to keep it honest
+    // if (cachedDomains.length > 0) {
+    //     const grp = document.createElement('optgroup');
+    //     grp.label = `Recently Available  (${cachedDomains.length})`;
+    //     cachedDomains.forEach(d => {
+    //         const opt = document.createElement('option');
+    //         opt.value = JSON.stringify({ provider: d.provider, domain: d.domain, base: d.base, cached: true });
+    //         opt.textContent = `\ud83d\udfe1 @${d.domain}`;
+    //         grp.appendChild(opt);
+    //     });
+    //     domainSelect.appendChild(grp);
+    // }
 }
 
 // ==========================================================
