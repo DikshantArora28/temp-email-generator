@@ -243,6 +243,8 @@ const BLACKLISTED_DOMAINS = [
 // even when Mail.tm/Mail.gw temporarily reduce their live list.
 const DOMAIN_CACHE_KEY = 'tempemail_domain_cache';
 const CACHE_MAX_AGE_DAYS = 30;
+// Valid providers for current setup (removed: trashmail, guerrillamail, dropmail)
+const VALID_PROVIDERS = ['mailtm', 'mailsac', 'mailslurp'];
 
 function loadDomainCache() {
     try {
@@ -250,7 +252,8 @@ function loadDomainCache() {
         if (!raw) return [];
         const parsed = JSON.parse(raw);
         const cutoff = Date.now() - CACHE_MAX_AGE_DAYS * 24 * 3600 * 1000;
-        return (parsed || []).filter(d => d.lastSeen > cutoff);
+        // Only return domains from valid providers
+        return (parsed || []).filter(d => d.lastSeen > cutoff && VALID_PROVIDERS.includes(d.provider));
     } catch { return []; }
 }
 
@@ -264,8 +267,8 @@ function updateDomainCache(liveDomains) {
     const now = Date.now();
     liveDomains.forEach(d => {
         const existing = map.get(d.domain);
-        if (existing) { existing.lastSeen = now; existing.base = d.base; }
-        else { map.set(d.domain, { domain: d.domain, base: d.base, firstSeen: now, lastSeen: now }); }
+        if (existing) { existing.lastSeen = now; existing.base = d.base; existing.provider = d.provider; }
+        else { map.set(d.domain, { domain: d.domain, base: d.base, provider: d.provider, firstSeen: now, lastSeen: now }); }
     });
     const arr = [...map.values()];
     saveDomainCache(arr);
